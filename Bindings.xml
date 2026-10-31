@@ -1,0 +1,8 @@
+<Bindings>
+	<!-- The game's Key Bindings menu, AddOns: "Toggle the Faxion feed" (UI.lua names it). The game
+	     loads this file from the add-on's folder by itself: it is not in the TOC. No key is bound
+	     here; the player picks one. -->
+	<Binding name="FAXION_TOGGLE" header="FAXION" category="ADDONS">
+		Faxion_ToggleBinding()
+	</Binding>
+</Bindings>

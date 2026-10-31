@@ -1,0 +1,35 @@
+## Interface: 16001
+## Title: |cffe2b65cFaxion|r
+## Notes: Faxion: a public social feed for your realm and faction: posts, follows, likes, replies, rare calls, camps and dungeon groups from meeting stones. No server.
+## Author: SwiftyPigeon512
+## Version: 0.1.0
+## SavedVariables: FaxionDB
+## IconTexture: Interface\Icons\INV_Letter_15
+## X-License: MIT
+
+Bootstrap.lua
+libs\LibStub\LibStub.lua
+libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
+libs\HereBeDragons\HereBeDragons-2.0.lua
+libs\HereBeDragons\HereBeDragons-Pins-2.0.lua
+
+Locale.lua
+Core.lua
+Codec.lua
+Ed25519.lua
+Comm.lua
+Identity.lua
+Store.lua
+Safety.lua
+Feed.lua
+Sync.lua
+Stones.lua
+Calls.lua
+Consent.lua
+UI.lua
+Popups.lua
+MapPins.lua
+Diagnostics.lua
+Measure.lua
+Demo.lua
+Slash.lua
