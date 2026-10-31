@@ -79,6 +79,7 @@ function Diagnostics.Status()
 			Comm.stats.fails, Comm.stats.flood, Comm.QueueSize()),
 		("Sync: digests %d sent, %d heard · answers %d · asked %d · sent %d posts"):format(Sync.stats.digests,
 			Sync.stats.heard, Sync.stats.offers, Sync.stats.asked, Sync.stats.sent),
+		("Stones known: %d in the table, %d recorded here, %d agreed by players"):format(ns.Stones.Counts()),
 	}
 	return table.concat(lines, "\n")
 end

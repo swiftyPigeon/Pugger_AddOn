@@ -21,6 +21,8 @@ local ADDON, ns = ...
 --   J1~cid~level~class~map~x~y~zone                 ask to join (whisper to the caller)
 --   J2~cid~ok|no|full|far|many|off                  the caller's answer (whisper)
 --   B1~n                                            "the feed moved to channel n"
+--   S1~map~x~y~key                                  "a meeting stone is here" (Stones.lua, the gossip)
+--   S2~map~x~y~key~reporter                         "I saw one there too" (a first-hand answer)
 --   X0~n / X1~n                                     Phase 0's rate test (Measure.lua)
 --
 -- Post id: "<author>:<t36>:<n36>" (the author's name, the server time in base 36, a counter).

@@ -277,6 +277,15 @@ function Calls.Dungeon(key, need, note)
 		ns.db.stones[s.key] = { map = map, x = x, y = y, t = ns.Now(), learned = true }
 		ns.Log("stone %s learned at %d %.3f %.3f", s.key, map, x, y)
 	end
+	if c then
+		local own = ns.db.stoneSeen
+		local found
+		for _, v in ipairs(own) do
+			local d = Calls.Distance(v.map, v.x, v.y, map, x, y)
+			if d and d <= ns.Stones.CLUSTER then v.key, v.t, found = s.key, ns.Now(), true end
+		end
+		if not found then own[#own + 1] = { map = map, x = x, y = y, key = s.key, t = ns.Now() } end
+	end
 end
 
 -- Ends a call of ours (f: full, x: closed), or votes on someone else's (u, d).
@@ -377,11 +386,13 @@ ns.Comm.Handle("M1", function(dist, sender, text)
 	-- A dungeon call far from its stone is dropped (when the stone's spot is known).
 	if c.kind == "D" then
 		if ns.Stones.Strict(c.map) and not ns.Stones.InZone(c.stone, c.map) then return end
-		local sm, sx, sy = ns.Stones.Spot(c.stone)
+		local sm, sx, sy = ns.Stones.TableSpot(c.stone)
 		if sm then
 			local d = Calls.Distance(sm, sx, sy, c.map, c.x, c.y)
 			if d and d > ns.Stones.CALL_NEAR then return end
 		end
+		-- The call is a vote for its stone's spot (the gossip, Stones.lua).
+		ns.Stones.Vote(sender, c.map, c.x, c.y, c.a)
 	end
 	-- Rares: one call per rare; a second is a vote for the first.
 	if c.kind == "R" then
@@ -613,6 +624,7 @@ function Calls.OnTooltip(tip)
 	local map, x, y = Calls.MyPosition()
 	if not map then return end
 	seen = { t = GetTime(), map = map, x = x, y = y }
+	ns.Stones.Sighted(map, x, y)
 	if (mine.D and active[mine.D]) or GetTime() - lastSeenCard < 600 or not ns.Popups then return end
 	lastSeenCard = GetTime()
 	ns.Popups.StoneSeen()

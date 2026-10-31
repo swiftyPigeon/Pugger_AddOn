@@ -71,6 +71,9 @@ local function Deliver(from, prefix, msg, dist, target, logged)
 	if #msg > 255 then error(("message of %d bytes from %s: %s"):format(#msg, from.name, msg:sub(1, 60))) end
 	sent.total = sent.total + 1
 	sent.byDist[dist] = (sent.byDist[dist] or 0) + 1
+	sent.kinds = sent.kinds or {}
+	local kind = msg:match("^(%u%d)~")
+	if kind then sent.kinds[kind] = (sent.kinds[kind] or 0) + 1 end
 	if #msg > sent.maxLen then sent.maxLen = #msg end
 	local event = logged and "CHAT_MSG_ADDON_LOGGED" or "CHAT_MSG_ADDON"
 	local sender = from.full
@@ -580,6 +583,78 @@ Check(not Call(P, P.ns.Calls.NearSeenStone), "walked away and time passed: no lo
 P.x = 0.4
 Check(Call(P, P.ns.Calls.AtStone, P.ns.Stones.Get("wc")), "back at the learned spot: at the stone without hovering")
 Logout(P) Logout(Q)
+
+print("== stones learned from other players (the gossip)")
+local function Kinds(k) return (sent.kinds or {})[k] or 0 end
+local function Hover(c)
+	c.env.GameTooltipTextLeft1 = { GetText = function() return "Meeting Stone" end }
+	Call(c, c.ns.Calls.OnTooltip, { GetUnit = function() return nil end, GetName = function() return "GameTooltip" end })
+end
+local W = {}
+for i = 1, 6 do W[i] = NewClient({ name = "Walker" .. i, map = 1436, x = 0.30 + i * 0.001, y = 0.30 }) Login(W[i]) end
+local O = NewClient({ name = "Obel", map = 1436, x = 0.9, y = 0.9 })
+local Lia = NewClient({ name = "Liar", map = 1436, x = 0.8, y = 0.8 })
+Login(O) Login(Lia)
+Advance(60)
+local s1 = Kinds("S1")
+Hover(W[1])
+Advance(15)
+Check(Kinds("S1") == s1 + 1, "hovering a stone sends one report")
+Check(Call(O, O.ns.Stones.Agreed, "dm") == nil, "one report: not agreed")
+Hover(W[2])
+Advance(15)
+Check(Call(O, O.ns.Stones.Agreed, "dm") == nil, "two players: not agreed yet")
+Hover(W[3])
+Advance(15)
+local m, ax, ay, votes = Call(O, O.ns.Stones.Agreed, "dm")
+Check(m == 1436 and votes >= 3, ("three players agree: Obel, never there, knows the Deadmines stone (%s votes)"):format(tostring(votes)))
+Check(Call(W[3], W[3].ns.Stones.Agreed, "dm") ~= nil, "...and so does the third walker (own sighting + two answers)")
+Hover(W[4])
+Advance(15)
+local before = Kinds("S1")
+Hover(W[5])
+Advance(15)
+Check(Kinds("S1") == before, "a stone already agreed is not reported again")
+-- At most two answers to one report, however many saw the stone.
+W[6].x = 0.30
+local sc = Call(W[6], function() return W[6].env.FaxionDB.stoneReported end)
+for k in pairs(sc) do sc[k] = nil end
+local s2 = Kinds("S2")
+Call(W[6], W[6].ns.Stones.Sighted, 1436, 0.30, 0.30, nil, true)
+Advance(15)
+Check(Kinds("S2") - s2 <= 2, ("one report, %d answers (five walkers hold sightings)"):format(Kinds("S2") - s2))
+-- A liar alone: never agreed, however often.
+for i = 1, 5 do
+	Call(Lia, function() Lia.ns.Comm.Send("S1~1436~8000~8000~dm") end)
+	Advance(3)
+end
+Advance(15)
+local lm, lx = Call(O, O.ns.Stones.Agreed, "dm")
+Check(lm == 1436 and lx < 0.5, "a liar's spot, sent five times, changes nothing")
+Check(Kinds("S2") - s2 <= 2, "nobody vouches for the liar's spot (nobody saw a stone there)")
+-- Learned spots help, never block: a call far from the agreed spot still reaches everyone.
+Call(Lia, function()
+	Lia.ns.Comm.Send(("M1~D~1~1436~9000~9000~%s~dm~2~17-26~WARRIOR~"):format(Lia.ns.Codec.Base36(BASE + math.floor(NOW) + 600)), { logged = true })
+end)
+Advance(5)
+local farCall
+for _, c in ipairs(Call(O, O.ns.Calls.List, "groups")) do if c.caller == Lia.full then farCall = c end end
+Check(farCall ~= nil, "a call far from an agreed spot is not dropped (only the shipped table can do that)")
+Check(select(3, Call(O, O.ns.Stones.Counts)) >= 1, "/fax status counts the agreed stone")
+-- The Barrens: three stones in one zone; hovering can't say which, a call names it.
+local Bn = {}
+for i = 1, 3 do Bn[i] = NewClient({ name = "Barren" .. i, map = 1413, x = 0.50 + i * 0.001, y = 0.40, level = 20 }) Login(Bn[i]) end
+Advance(60)
+for i = 1, 3 do Hover(Bn[i]) Advance(15) end
+Check(Call(O, O.ns.Stones.Agreed, "wc") == nil, "the Barrens: three agree there's a stone, but not which dungeon")
+Call(Bn[1], function() Bn[1].env.FaxionDB.consented = 1 end)
+Call(Bn[1], Bn[1].ns.Calls.Dungeon, "wc", 2)
+Advance(10)
+Check(Call(O, O.ns.Stones.Agreed, "wc") ~= nil, "...until a Wailing Caverns call there names it")
+Check(Call(O, O.ns.Stones.Agreed, "rfk") == nil, "...and Razorfen Kraul stays unknown")
+for _, c in ipairs(W) do Logout(c) end
+for _, c in ipairs(Bn) do Logout(c) end
+Logout(O) Logout(Lia)
 
 print("== a locked channel")
 -- One player alone saying "moved" moves nobody.
