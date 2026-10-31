@@ -319,6 +319,13 @@ local function Short(t)
 	return math.floor(d / 86400) .. "d"
 end
 
+-- Where the player stands, as a post would show it ("Durotar (45, 12)").
+function UI.MySpot()
+	local m, x, y = ns.Calls.MyPosition()
+	if not m then return nil end
+	return ("%s (%d, %d)"):format(ns.Calls.ZoneName(m), x * 100, y * 100)
+end
+
 function UI.PinText(pin)
 	local m, x, y = Codec.DecodePin(pin)
 	if not m then return nil end
@@ -405,6 +412,18 @@ local function NewPostRow(parent)
 	r.pinIcon:SetSize(12, 12)
 	r.pinIcon:SetTexture("Interface\\Minimap\\Tracking\\None")
 	r.pin = Font(r, "gold")
+	r.pinBtn = CreateFrame("Button", nil, r)
+	r.pinBtn:SetAllPoints(r.pin)
+	r.pinBtn:SetScript("OnClick", function(self)
+		local m, x, y = Codec.DecodePin(self.pin or "")
+		if m then UI.PinOnMap({ map = m, x = x, y = y, kind = "P" }) end
+	end)
+	r.pinBtn:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText(L.SPOT_TIP_POST)
+		GameTooltip:Show()
+	end)
+	r.pinBtn:SetScript("OnLeave", function() GameTooltip:Hide() end)
 	r.line = r:CreateTexture(nil, "ARTWORK")
 	r.line:SetHeight(1)
 	r.line:SetColorTexture(unpack(C.edge))
@@ -460,10 +479,13 @@ local function FillPost(r, p)
 		r.pin:SetPoint("LEFT", r.pinIcon, "RIGHT", 3, 0)
 		r.pin:SetText(pinText)
 		r.pin:Show()
+		r.pinBtn.pin = shownPost.pin
+		r.pinBtn:Show()
 		y = y - 15
 	else
 		r.pin:Hide()
 		r.pinIcon:Hide()
+		r.pinBtn:Hide()
 	end
 	r.line:ClearAllPoints()
 	r.line:SetPoint("TOPLEFT", 6, y)
@@ -853,10 +875,20 @@ local function Compose(parent)
 	edit.placeholder = Font(edit, "dim")
 	edit.placeholder:SetPoint("TOPLEFT", 8, -7)
 	box.edit = edit
-	box.pin = Button(box, L.PIN_OFF, function()
+	box.pin = Button(box, L.PIN_OFF, function(b)
 		pinOn = not pinOn
 		UI.Counter()
+		if b:IsMouseOver() then b:GetScript("OnEnter")(b) end
 	end, "line")
+	box.pin:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText(pinOn and L.PIN_ON or L.PIN_OFF)
+		GameTooltip:AddLine(L.SPOT_TIP, 1, 1, 1, true)
+		local here = UI.MySpot()
+		GameTooltip:AddLine(here and L.SPOT_HERE:format(here) or L.NO_POSITION, 0.89, 0.71, 0.36, true)
+		GameTooltip:Show()
+	end)
+	box.pin:SetScript("OnLeave", function() GameTooltip:Hide() end)
 	box.pin:SetPoint("BOTTOMLEFT", 2, 2)
 	box.call = Button(box, L.CALL_MENU, function(b) UI.CallMenu(b) end, "line")
 	box.call:SetPoint("LEFT", box.pin, "RIGHT", 0, 0)
@@ -1220,7 +1252,13 @@ function UI.Counter()
 	local max = ns.Feed.MAX_LETTERS
 	box.count:SetText(Hex(n > max - 10 and C.rare or C.dim, ("%d/%d"):format(n, max)))
 	box.edit.placeholder:SetText((text == "" and not box.edit:HasFocus()) and (ns.Safety.CanPost() and L.PLACEHOLDER or L.PLACEHOLDER_LOW) or "")
+	box.pin.kind = pinOn and "main" or "line"
 	box.pin:SetLabel(pinOn and L.PIN_ON or L.PIN_OFF)
+	box.pin:SetOn(true)
+	if pinOn and text == "" and not box.edit:HasFocus() then
+		local here = UI.MySpot()
+		box.edit.placeholder:SetText(here and L.SPOT_ATTACHED:format(here) or L.NO_POSITION)
+	end
 	local p = replyTo and Store.Get(replyTo)
 	if p then
 		box.cancel:Show()
