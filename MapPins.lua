@@ -95,18 +95,28 @@ function MapPins.ToggleMenu(anchor)
 	})
 end
 
+MapPins.BUTTON_X = 44 -- from the map's left edge: clear of the corner other add-ons use
+
 local toggle
 local function MapButton()
 	if toggle or type(WorldMapFrame) ~= "table" then return end
 	local parent = type(WorldMapFrame.ScrollContainer) == "table" and WorldMapFrame.ScrollContainer or WorldMapFrame
 	toggle = CreateFrame("Button", "Faxion_MapButton", parent)
-	toggle:SetSize(26, 26)
-	toggle:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", 6, 6)
+	-- Round, in the minimap buttons' gold ring; a little in from the bottom-left corner, where
+	-- other add-ons (Guild Master Forever's among them) put their map button.
+	toggle:SetSize(31, 31)
+	toggle:SetPoint("BOTTOMLEFT", parent, "BOTTOMLEFT", MapPins.BUTTON_X, 6)
 	toggle:SetFrameLevel((parent:GetFrameLevel() or 1) + 20)
-	local t = toggle:CreateTexture(nil, "ARTWORK")
-	t:SetAllPoints()
+	local t = toggle:CreateTexture(nil, "BACKGROUND")
+	t:SetSize(20, 20)
+	t:SetPoint("CENTER", 0, 1)
 	t:SetTexture(ns.ICON)
-	toggle:SetHighlightTexture("Interface\\Buttons\\ButtonHilight-Square", "ADD")
+	if t.SetMask then pcall(t.SetMask, t, "Interface\\CharacterFrame\\TempPortraitAlphaMask") end
+	local ring = toggle:CreateTexture(nil, "OVERLAY")
+	ring:SetSize(53, 53)
+	ring:SetPoint("TOPLEFT")
+	ring:SetTexture("Interface\\Minimap\\MiniMap-TrackingBorder")
+	toggle:SetHighlightTexture("Interface\\Minimap\\UI-Minimap-ZoomButton-Highlight")
 	toggle:SetScript("OnClick", function(self) MapPins.ToggleMenu(self) end)
 	toggle:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")

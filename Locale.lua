@@ -223,7 +223,7 @@ L.MAP_GROUPS = "Groups"
 L.MAP_RARE_POPUPS = "Cards for rares in my zone"
 L.MAP_GROUP_POPUPS = "Cards for groups near me"
 L.MAP_LEVEL_ONLY = "Group cards only at my level"
-L.MAP_BUTTON_TIP = "Which calls show on the map, and which make a card."
+L.MAP_BUTTON_TIP = "Click: which Faxion calls (rares, camps, groups) show on the map, and which make a card."
 L.CHANNEL_MOVED = "The feed's channel was locked; it moved to %s."
 
 -- Privacy
