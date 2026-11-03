@@ -9,7 +9,8 @@ ns.VERSION = "0.1.0"
 ns.PREFIX = "PUGGER"                  -- add-on message prefix (16 characters at most)
 ns.CHANNELS = { Alliance = "PuggerA", Horde = "PuggerH" } -- + 1, 2, 3...: the numbered channels
 ns.CHANNEL_MAX = 6                   -- the last backup channel tried
-ns.ICON = "Interface\\AddOns\\Pugger\\media\\logo128"  -- the logo, an @ (64 px for the add-on list: the TOC)
+ns.ICON = "Interface\\AddOns\\Pugger\\media\\logo64"  -- the logo: a white @ on blue (the add-on list, cards)
+ns.ICON_SMALL = "Interface\\AddOns\\Pugger\\media\\logo32" -- ...drawn for 18-20 px: the header, the minimap and map buttons
 ns.ICON_MENTION = "Interface\\AddOns\\Pugger\\media\\bubble64" -- the Mentions tab and its cards: a speech bubble
 ns.ICON_GROUPS = "Interface\\AddOns\\Pugger\\media\\stone64" -- the Groups tab and dungeon groups: a meeting stone
 ns.COLOR = "ffe2b65c"                -- the gold of the window's trim

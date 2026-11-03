@@ -110,7 +110,7 @@ local function MapButton()
 	local t = toggle:CreateTexture(nil, "BACKGROUND")
 	t:SetSize(20, 20)
 	t:SetPoint("CENTER", 0, 1)
-	t:SetTexture(ns.ICON)
+	t:SetTexture(ns.ICON_SMALL)
 	if t.SetMask then pcall(t.SetMask, t, "Interface\\CharacterFrame\\TempPortraitAlphaMask") end
 	local ring = toggle:CreateTexture(nil, "OVERLAY")
 	ring:SetSize(53, 53)
