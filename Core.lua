@@ -5,7 +5,7 @@ local ADDON, ns = ...
 -- see LICENSE.txt).
 
 ns.NAME = "Pugger"
-ns.VERSION = "0.1.0"
+ns.VERSION = "0.1.1"
 ns.PREFIX = "PUGGER"                  -- add-on message prefix (16 characters at most)
 ns.CHANNELS = { Alliance = "PuggerA", Horde = "PuggerH" } -- + 1, 2, 3...: the numbered channels
 ns.CHANNEL_MAX = 6                   -- the last backup channel tried

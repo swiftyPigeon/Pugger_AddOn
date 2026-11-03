@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1 (2026-11-03)
+- The feed's title shows how many players use Pugger right now ("12 users"): those heard from in
+  the last half hour, you included. Its tooltip tells more, and how many are known in the feed.
+- The group dialog, tidied: the dungeon's name as its title, the game's checkboxes on the role
+  buttons, each role named under its icon, the row centred.
+
 ## 0.1.0 (2026-11-03): the first release
 - First build: posts (80 characters), follows, likes, reposts, replies, mentions, tags, profiles,
   signed posts and catch-up sync, map calls (rare, camp, quest / farm group, dungeon group at

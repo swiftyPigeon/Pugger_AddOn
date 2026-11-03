@@ -266,7 +266,9 @@ local function Dialog()
 	d:SetScript("OnDragStop", d.StopMovingOrSizing)
 	d.title = UI.Font(d, "title")
 	d.title:SetPoint("TOP", 0, -18)
+	d.title:SetWidth(290)
 	d.title:SetJustifyH("CENTER")
+	ns.UI.Wrap(d.title)
 	d.body = UI.Font(d, nil)
 	d.body:SetPoint("TOP", d.title, "BOTTOM", 0, -6)
 	d.body:SetWidth(280)
@@ -300,7 +302,8 @@ local function Dialog()
 			b.icon:SetDesaturated(n == 0)
 			b.icon:SetAlpha(n == 0 and 0.45 or 1)
 			b.check:SetShown(n > 0)
-			b.count:SetText(r == "D" and n > 0 and ("x" .. n) or "")
+			b.count:SetText(r == "D" and n > 1 and ("x" .. n) or "")
+			b.name:SetTextColor(unpack(n > 0 and { 0.93, 0.90, 0.84 } or { 0.62, 0.58, 0.50 }))
 		end
 		local total = RoleTotal()
 		d.roleTotal:SetText(L.NEEDS_TOTAL:format(total))
@@ -308,18 +311,26 @@ local function Dialog()
 	end
 	for i, r in ipairs({ "T", "H", "D" }) do
 		local b = CreateFrame("Button", nil, d)
-		b:SetSize(36, 36)
+		b:SetSize(40, 40)
 		b.icon = b:CreateTexture(nil, "ARTWORK")
 		b.icon:SetAllPoints()
 		b.icon:SetTexture(UI.ROLE_TEX)
 		local q = UI.ROLE_COORDS[r]
 		b.icon:SetTexCoord(q[1] / 256, q[2] / 256, q[3] / 256, q[4] / 256)
-		b.check = b:CreateTexture(nil, "OVERLAY")
-		b.check:SetSize(18, 18)
-		b.check:SetPoint("BOTTOMLEFT", -4, -4)
+		-- The game's checkbox at the lower left, as the group finder's role buttons have it.
+		b.box = b:CreateTexture(nil, "OVERLAY")
+		b.box:SetSize(20, 20)
+		b.box:SetPoint("BOTTOMLEFT", -5, -5)
+		b.box:SetTexture("Interface\\Buttons\\UI-CheckBox-Up")
+		b.check = b:CreateTexture(nil, "OVERLAY", nil, 1)
+		b.check:SetAllPoints(b.box)
 		b.check:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
 		b.count = UI.Font(b, "big")
-		b.count:SetPoint("BOTTOMRIGHT", 6, -2)
+		b.count:SetPoint("TOPRIGHT", 8, 2)
+		b.count:SetShadowOffset(1, -1)
+		b.name = UI.Font(b, "dim")
+		b.name:SetPoint("TOP", b, "BOTTOM", 0, -5)
+		b.name:SetText(L["ROLE_" .. r])
 		b.shine = b:CreateTexture(nil, "HIGHLIGHT")
 		b.shine:SetAllPoints()
 		b.shine:SetTexture(UI.ROLE_TEX)
@@ -383,19 +394,21 @@ function Popups.Dialog(spec)
 		rolePick, roleMax = { T = n.T, H = n.H, D = n.D }, spec.roles.max or 4
 		y = y - 14
 		d.roleLabel:ClearAllPoints()
-		d.roleLabel:SetPoint("TOPLEFT", d, "TOP", -134, y + 13)
+		-- "Roles needed" and "Needs 4" on one line (as wide as the boxes above), the three
+		-- buttons centred under it, each with its name below.
+		d.roleLabel:SetPoint("TOPLEFT", d, "TOP", -132, y + 13)
 		d.roleLabel:SetText(L.ROLES_NEEDED)
 		d.roleLabel:Show()
+		d.roleTotal:ClearAllPoints()
+		d.roleTotal:SetPoint("TOPRIGHT", d, "TOP", 138, y + 13)
+		d.roleTotal:Show()
 		for i, r in ipairs({ "T", "H", "D" }) do
 			local b = d.roleButtons[r]
 			b:ClearAllPoints()
-			b:SetPoint("TOPLEFT", d, "TOP", -128 + (i - 1) * 52, y - 2)
+			b:SetPoint("TOP", d, "TOP", 3 + (i - 2) * 76, y - 8)
 			b:Show()
 		end
-		d.roleTotal:ClearAllPoints()
-		d.roleTotal:SetPoint("LEFT", d.roleButtons.D, "RIGHT", 22, 0)
-		d.roleTotal:Show()
-		y = y - 44
+		y = y - 70
 	else
 		rolePick = nil
 		d.roleLabel:Hide()
@@ -461,7 +474,7 @@ function Popups.GroupAsk(s)
 	local open = math.max(1, 4 - math.max(0, (GetNumGroupMembers and GetNumGroupMembers() or 0) - 1))
 	if s then
 		return Popups.Dialog({
-			title = L.STONE_PROMPT:format(s.name), body = L.DUNGEON_BODY:format(s.lo, s.hi),
+			title = s.name, body = L.DUNGEON_BODY:format(s.lo, s.hi),
 			edits = { { label = L.NOTE, max = ns.Calls.NOTE_MAX } },
 			roles = { max = open, pick = ("THDD"):sub(1, open) },
 			ok = L.LOOK_FOR_GROUP, go = function(note, _, roles) ns.Calls.Dungeon(s.key, roles, note) end,

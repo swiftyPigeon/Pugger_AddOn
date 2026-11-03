@@ -34,10 +34,27 @@ local handlers = {}
 local stats = { sent = 0, fails = 0, recv = 0, flood = 0, bad = 0, echo = 0, dropped = 0, byType = {} }
 Comm.stats = stats
 local heard = {} -- [sender] = when we last heard them (so a whisper only goes to someone online)
+local countingSince = GetTime()
+
+-- Every client sends its profile at login and every half hour (Identity.PROFILE_EVERY): the
+-- players heard within that, and a minute more, are the ones online with the add-on.
+Comm.ONLINE_WINDOW = 1860
 
 function Comm.HeardWithin(name, seconds)
 	local t = heard[name]
 	return t ~= nil and GetTime() - t <= seconds
+end
+
+-- Players online with the add-on on this feed, this one included (only those whose profile this
+-- client holds: garbage on the channel never makes one); and for how many seconds this client
+-- has been listening (under ONLINE_WINDOW, the count is still filling in).
+function Comm.Online()
+	local now, n = GetTime(), 1
+	local profiles = ns.rdb and ns.rdb.profiles or {}
+	for k, t in pairs(heard) do
+		if now - t <= Comm.ONLINE_WINDOW and profiles[k] then n = n + 1 end
+	end
+	return n, now - countingSince
 end
 
 local function Dist()
@@ -371,7 +388,7 @@ ns.On("LOGIN", function()
 		Codec.Gc(asm.CHANNEL, now)
 		Codec.Gc(asm.WHISPER, now)
 		for k, b in pairs(buckets) do if now - b.t > 300 then buckets[k] = nil end end
-		for k, t in pairs(heard) do if now - t > 1200 then heard[k] = nil end end
+		for k, t in pairs(heard) do if now - t > Comm.ONLINE_WINDOW then heard[k] = nil end end
 		if not ns.TestNet() and (channelIndex == 0 or (GetChannelName(joinedName or "") or 0) == 0) then Comm.JoinChannel() end
 	end)
 end)

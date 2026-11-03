@@ -535,6 +535,19 @@ Advance(5)
 Check(#Errors(A) == junkErrors, "3000 garbage messages: no error (" .. (#Errors(A) - junkErrors) .. ")")
 
 Advance(65) -- (Cass's flood ban runs out)
+print("== the feed's size")
+-- Everyone sends a profile at login: each Alliance client counts the others it heard, and
+-- itself; the Horde client, on its own channel, is never counted.
+local onA = Call(A, A.ns.Comm.Online)
+local alliance = 0
+for _, c in pairs(clients) do if c.faction ~= "Horde" and c.ns and c.ns.rdb then alliance = alliance + 1 end end
+Check(onA >= 3 and onA <= alliance, ("Aria counts the Alliance players online (%d of %d clients)"):format(onA, alliance))
+Check(Call(A, function() local n = 1 for k in pairs(A.ns.rdb.profiles) do if k:find("^Junk") then n = n + 1 end end return n end) == 1,
+	"garbage senders make no profile, so they are never counted")
+local horde = false
+Call(A, function() if A.ns.Comm.HeardWithin(H.ns.me, 3600) then horde = true end end)
+Check(not horde, "...and never the Horde player")
+
 print("== quiet in group instances")
 -- Bran goes into a dungeon with a group: the window steps aside and no card shows; a rare
 -- called meanwhile catches up as a card on the way out, while it is still up.

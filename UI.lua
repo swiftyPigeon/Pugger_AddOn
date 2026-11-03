@@ -354,6 +354,18 @@ function UI.RoleIcons(roles)
 	return table.concat(out, "")
 end
 
+-- The feed's size, under its title's tooltip: online now (and since when it has been counting),
+-- and everyone this client knows a profile of.
+function UI.OnlineTip()
+	local n, listening = ns.Comm.Online()
+	GameTooltip:AddLine(" ")
+	GameTooltip:AddLine(L.ONLINE_TIP:format(n), 0.89, 0.71, 0.36, true)
+	if listening < ns.Comm.ONLINE_WINDOW then
+		GameTooltip:AddLine(L.ONLINE_COUNTING:format(math.max(1, math.floor(listening / 60))), 0.62, 0.58, 0.50, true)
+	end
+	GameTooltip:AddLine(L.KNOWN_N:format(ns.Count(ns.rdb.profiles)), 0.62, 0.58, 0.50, true)
+end
+
 -- Ask to join: with the role to fill picked from what the call needs and this player's class
 -- can do (one: asked straight away; several: a menu at the button).
 function UI.AskJoin(c, anchor)
@@ -1106,8 +1118,12 @@ function UI.Build()
 		if not self.hint or self.hint == "" then return end
 		GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
 		GameTooltip:SetText(self.hint, 1, 1, 1, true)
+		if self.online then UI.OnlineTip() end
 		GameTooltip:Show()
 	end)
+	-- The feed's tab: how many are on it now, beside the faction's name.
+	frame.online = Font(frame, "dim")
+	frame.online:SetPoint("BOTTOMLEFT", frame.viewTitle, "BOTTOMRIGHT", 7, 1)
 	frame.titleTip:SetScript("OnLeave", function() GameTooltip:Hide() end)
 	frame.menuBtn = Button(frame, L.MENU, function(b) UI.WindowMenu(b) end, "line")
 	frame.menuBtn:SetPoint("TOPRIGHT", -8, -27)
@@ -1258,6 +1274,14 @@ function UI.Render()
 		frame.viewTitle:SetText(title)
 	end
 	frame.titleTip.hint = Hint()
+	local feedTab = view.tab == "realm" and not view.sub
+	frame.titleTip.online = feedTab
+	local users = feedTab and ns.Comm.Online() or 0
+	frame.online:SetText(not feedTab and "" or users == 1 and L.ONLINE_1 or L.ONLINE_N:format(users))
+	-- (The title's tooltip covers the count too.)
+	frame.titleTip:ClearAllPoints()
+	frame.titleTip:SetPoint("TOPLEFT", frame.viewTitle, "TOPLEFT", 0, 0)
+	frame.titleTip:SetPoint("BOTTOMRIGHT", feedTab and frame.online or frame.viewTitle, "BOTTOMRIGHT", 0, 0)
 	if view.sub then frame.back:Show() else frame.back:Hide() end
 	for _, tab in ipairs(frame.tabs) do
 		tab:SetChecked(view.tab == tab.def.key and not view.sub)
