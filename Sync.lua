@@ -83,10 +83,11 @@ ns.Comm.Handle("H2", function(dist, sender, text)
 	stats.heard = stats.heard + 1
 	local myBucket, mine = Store.Digest()
 	if bucket ~= myBucket then return end -- (another hour on its clock: nothing to compare)
-	local same = #theirs == #mine
-	for i, e in ipairs(mine) do
-		local t = theirs[i]
-		if not t or t.c ~= e.c or t.h ~= e.h then
+	-- Only the hours both keep are compared (a busy feed's client keeps fewer).
+	local same = true
+	for i = 1, math.min(#mine, #theirs) do
+		local e, t = mine[i], theirs[i]
+		if t.c ~= e.c or t.h ~= e.h then
 			same = false
 			local b = myBucket - (i - 1)
 			local key = sender .. "#" .. b

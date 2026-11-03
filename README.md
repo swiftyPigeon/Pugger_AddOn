@@ -22,7 +22,8 @@ Version **0.1.1** (2026-11-03).
 - **Quiet in group instances:** in a dungeon, raid, battleground or arena with others, the window
   steps aside and no cards pop up; on the way out, calls still live (rares, groups, asks to join
   yours) catch up as cards. A switch in the window's menu.
-- **Busy realms:** twelve hours of posts kept. When the feed passes 120 posts an hour, it shows
+- **Live, not an archive:** posts stay 6 hours (2 on a busy feed; mentions of you a day, your own
+  posts a week). When the feed passes 120 posts an hour, it shows
   who you follow, then posts written near you (one click shows everything); on a big realm the
   add-on's own messages slow down so the channel stays light.
 - **Where it sits:** Pugger's button by the chat (just above the game's social button, with your

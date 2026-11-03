@@ -21,7 +21,6 @@ ns.TEST_COPY = nil
 
 -- What every character starts with (ns.db.settings), each switchable in the window's menu.
 local DEFAULTS = {
-	hoursKept = 12,         -- hours of posts kept: 3, 6 or 12 (the next login brings newer ones)
 	showFollows = false,    -- others may see who this player follows (on the profile)
 	mentionPopups = true,   -- a card beside the minimap when someone mentions this player
 	mentionsFollowedOnly = false, -- ...only from people this player follows

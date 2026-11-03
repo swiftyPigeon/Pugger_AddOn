@@ -11,8 +11,9 @@
 - Cards stack up from just above the chat (or beside the minimap, or at the top of the screen).
 - A short setup at the first launch: where the button and the cards go, each choice shown at
   once. Again any time from the menu (Buttons and cards...) or `/pug setup`.
-- Twelve hours of posts kept (3, 6 or 12 in the menu), not three days: the next login brings
-  newer ones. Catch-up works in hours to match (its messages renamed: 0.1.0's are ignored).
+- The feed lives in the moment: posts stay 6 hours, 2 on a busy feed (not three days). Mentions
+  of you stay a day, your own posts a week. Catch-up covers only those hours, in hour buckets
+  (its messages renamed: 0.1.0's are ignored).
 - A busy feed focuses: past 120 posts an hour, the faction's tab shows the people you follow,
   then posts written near you; a line says how many were left out, and shows them all on a click.
 - On a big feed (past 250 players) profiles and catch-up slow down in step, so the channel

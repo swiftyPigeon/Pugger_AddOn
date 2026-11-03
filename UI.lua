@@ -369,6 +369,7 @@ function UI.LimitsTip(owner)
 	Line(L.LIMIT_SPOT_MOVE:format(S.SPOT_YARDS))
 	Line(L.LIMIT_HOUR:format(S.POSTS_PER_HOUR))
 	Line(L.LIMIT_PLACE)
+	Line(L.LIMIT_KEPT:format(ns.Store.KEEP_HOURS, ns.Store.KEEP_BUSY_HOURS))
 	Head(L.LIMITS_CALLS)
 	Line(L.LIMIT_RARE)
 	Line(L.LIMIT_RARE_HOUR:format(Calls.RARE_PER_HOUR, math.floor(Calls.RARE_DEAD_PAUSE / 60)))
@@ -1543,11 +1544,6 @@ function UI.WindowMenu(anchor)
 		{ text = L.GROUPS_IN_REALM, check = s.groupsInRealm, go = function() s.groupsInRealm = not s.groupsInRealm dirty = true end },
 		{ text = L.ASKS_FROM:format(L["ASKS_" .. (s.asks or "all"):upper()]), go = function()
 			s.asks = s.asks == "all" and "friends" or (s.asks == "friends" and "off" or "all")
-		end },
-		{ text = L.HOURS_KEPT:format(s.hoursKept or 12), go = function()
-			s.hoursKept = (s.hoursKept or 12) >= 12 and 3 or (s.hoursKept == 3 and 6 or 12)
-			ns.Store.Prune()
-			dirty = true
 		end },
 		{ text = L.WORD_FILTER, go = function() ns.Popups.WordFilter() end },
 		{ text = L.MAP_CALLS, go = function() ns.MapPins.ToggleMenu(anchor) end },

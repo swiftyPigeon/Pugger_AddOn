@@ -1,8 +1,9 @@
 local ADDON, ns = ...
 
--- The posts this client holds, in ns.rdb (one realm and faction): the last hours of posts
--- (settings.hoursKept, 12 at most: the next login brings newer ones), at most PER_AUTHOR per
--- author and MAX_POSTS in all, the oldest dropped first; the player's own stay a week. A delete leaves a small tombstone for TOMB_DAYS, so sync never brings the post
+-- The posts this client holds, in ns.rdb (one realm and faction): the feed lives in the moment
+-- (the user's call: play, don't look back): KEEP_HOURS of posts, KEEP_BUSY_HOURS on a busy feed
+-- (Feed.Busy); mentions of the player stay KEEP_MENTIONS_HOURS, their own posts a week. At most
+-- PER_AUTHOR per author and MAX_POSTS in all, the oldest dropped first. A delete leaves a small tombstone for TOMB_DAYS, so sync never brings the post
 -- back. Posts:
 --   posts[id] = { id, a = author, t = time, f = "p"|"r"|nil, par = parent id, pin, x = text,
 --                 s = signature, v = "direct"|"ok"|nil (checked), lk = { [liker] = true },
@@ -17,8 +18,11 @@ local Codec = ns.Codec
 Store.PER_AUTHOR = 200
 Store.MAX_POSTS = 5000
 Store.TOMB_DAYS = 7
+Store.KEEP_HOURS = 6
+Store.KEEP_BUSY_HOURS = 2
+Store.KEEP_MENTIONS_HOURS = 24
 Store.BUCKET = 3600  -- an hour
-Store.BUCKETS = 12   -- twelve of them in a digest: all a client keeps
+Store.BUCKETS = 6    -- a digest's hours at most (as many as the client keeps: Store.Hours)
 
 local children = {}  -- [parent id] = { [id] = true }: replies and reposts
 local byAuthor = {}  -- [author] = count
@@ -57,8 +61,13 @@ function Store.Get(id) return ns.rdb.posts[id] or Store.demo[id] end
 function Store.Total() return total end
 function Store.IsTomb(id) return ns.rdb.tombs[id] ~= nil end
 
+-- The hours of posts kept now: fewer on a busy feed.
+function Store.Hours()
+	return (ns.Feed and ns.Feed.Busy()) and Store.KEEP_BUSY_HOURS or Store.KEEP_HOURS
+end
+
 local function Oldest()
-	return ns.Now() - math.max(1, math.min(12, ns.db.settings.hoursKept or 12)) * 3600
+	return ns.Now() - Store.Hours() * 3600
 end
 Store.Oldest = Oldest
 
@@ -106,12 +115,15 @@ function Store.Tomb(id, at, author, sig)
 	Store.Remove(id)
 end
 
--- Old posts and tombstones go; called at login and every hour.
+-- Old posts and tombstones go; called at login and every ten minutes.
 function Store.Prune()
 	local oldest, now = Oldest(), ns.Now()
+	local mentions = now - Store.KEEP_MENTIONS_HOURS * 3600
 	for id, p in pairs(ns.rdb.posts) do
-		-- The player's own posts stay longer (a week): they're few and small.
-		local keep = p.a == ns.me and now - 7 * 86400 or oldest
+		-- The player's own posts stay a week, mentions of them a day: few, and theirs.
+		local keep = oldest
+		if p.a == ns.me then keep = now - 7 * 86400
+		elseif ns.Feed and ns.Feed.MentionsMe(p) then keep = mentions end
 		if p.t < keep then Store.Remove(id) end
 	end
 	for id, tb in pairs(ns.rdb.tombs) do
@@ -154,16 +166,17 @@ function Store.BucketOf(t) return math.floor(t / Store.BUCKET) end
 function Store.Digest()
 	local now = Store.BucketOf(ns.Now())
 	local c, h = {}, {}
-	for i = 0, Store.BUCKETS - 1 do c[i], h[i] = 0, 0 end
+	local n = math.min(Store.BUCKETS, Store.Hours()) -- (only the hours this client keeps)
+	for i = 0, n - 1 do c[i], h[i] = 0, 0 end
 	for id, p in pairs(ns.rdb.posts) do
 		local i = now - Store.BucketOf(p.t)
-		if i >= 0 and i < Store.BUCKETS then
+		if i >= 0 and i < n then
 			c[i] = c[i] + 1
 			h[i] = (h[i] + Codec.Hash(id)) % 4294967296
 		end
 	end
 	local list = {}
-	for i = 0, Store.BUCKETS - 1 do list[#list + 1] = { c = c[i], h = h[i] % 1679616 } end -- 36^4
+	for i = 0, n - 1 do list[#list + 1] = { c = c[i], h = h[i] % 1679616 } end -- 36^4
 	return now, list
 end
 
@@ -203,6 +216,6 @@ end
 ns.On("LOGIN", function()
 	Store.Prune()
 	Store.Rebuild()
-	ns.Every(3600, "store prune", function() Store.Prune() end)
+	ns.Every(600, "store prune", function() Store.Prune() end)
 end)
 ns.On("FACTION", function() Store.Prune() Store.Rebuild() end)

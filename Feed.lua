@@ -309,10 +309,16 @@ local function Visible(p) return not ns.Safety.Hidden(p) end
 Feed.BUSY_PER_HOUR = 120
 Feed.showAll = false
 Feed.leftOut = 0
+-- (Counted again when the posts held change or every half minute: Store asks on every post.)
+local busy, busyN, busyTotal, busyAt = false, 0, -1, -1e9
 function Feed.Busy()
-	local since, n = ns.Now() - 3600, 0
-	for _, p in pairs(ns.rdb.posts) do if p.t >= since and p.f ~= "p" then n = n + 1 end end
-	return n >= Feed.BUSY_PER_HOUR, n
+	local now = ns.Now()
+	if ns.Store.Total() ~= busyTotal or now - busyAt >= 30 then
+		local since, n = now - 3600, 0
+		for _, p in pairs(ns.rdb.posts) do if p.t >= since and p.f ~= "p" then n = n + 1 end end
+		busy, busyN, busyTotal, busyAt = n >= Feed.BUSY_PER_HOUR, n, ns.Store.Total(), now
+	end
+	return busy, busyN
 end
 
 -- Written near the player: the post's zone is theirs or one next to it.

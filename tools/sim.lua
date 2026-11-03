@@ -560,9 +560,10 @@ local horde = false
 Call(A, function() if A.ns.Comm.HeardWithin(H.ns.me, 3600) then horde = true end end)
 Check(not horde, "...and never the Horde player")
 
-print("== twelve hours kept, and a busy feed")
--- Posts older than twelve hours go (the player's own stay); past BUSY_PER_HOUR posts an hour the
--- faction's tab shows who the player follows, then posts near them, and says how many it left out.
+print("== hours kept, and a busy feed")
+-- Six hours of posts (two on a busy feed); mentions of the player a day, their own a week. Past
+-- BUSY_PER_HOUR posts an hour the faction's tab shows who the player follows, then posts near
+-- them, and says how many it left out.
 local function Fake(c, author, ago, map, text)
 	local t = c.ns.Now() - ago
 	local p = { id = c.ns.Codec.PostId(author, t, math.random(1, 1e6)), a = author, t = t, x = text,
@@ -570,11 +571,17 @@ local function Fake(c, author, ago, map, text)
 	c.ns.Store.Add(p)
 	return p
 end
-local old = Call(Cc, Fake, Cc, "Oldtimer-Forever", 60, Cc.map, "from yesterday")
-local mineOld = Call(Cc, Fake, Cc, Cc.ns.me, 60, Cc.map, "my own, yesterday")
-old.t, mineOld.t = old.t - 13 * 3600, mineOld.t - 13 * 3600 -- (thirteen hours on)
+local old = Call(Cc, Fake, Cc, "Oldtimer-Forever", 60, Cc.map, "from this morning")
+local four = Call(Cc, Fake, Cc, "Fourhours-Forever", 60, Cc.map, "four hours ago")
+local mineOld = Call(Cc, Fake, Cc, Cc.ns.me, 60, Cc.map, "my own, this morning")
+local mention = Call(Cc, Fake, Cc, "Pal-Forever", 60, Cc.map, "thanks @" .. Cc.ns.me)
+local oldMention = Call(Cc, Fake, Cc, "Pal-Forever", 60, Cc.map, "yesterday, @" .. Cc.ns.me)
+old.t, mineOld.t, four.t = old.t - 7 * 3600, mineOld.t - 7 * 3600, four.t - 4 * 3600
+mention.t, oldMention.t = mention.t - 10 * 3600, oldMention.t - 25 * 3600
 Call(Cc, Cc.ns.Store.Prune)
-Check(Cc.ns.Store.Get(old.id) == nil and Cc.ns.Store.Get(mineOld.id) ~= nil, "after twelve hours a post goes; the player's own stay")
+Check(Cc.ns.Store.Get(old.id) == nil and Cc.ns.Store.Get(four.id) ~= nil, "a quiet feed: four hours kept, seven gone")
+Check(Cc.ns.Store.Get(mineOld.id) ~= nil, "...the player's own post stays")
+Check(Cc.ns.Store.Get(mention.id) ~= nil and Cc.ns.Store.Get(oldMention.id) == nil, "...a mention of them a day: ten hours kept, twenty-five gone")
 Check(not Call(Cc, Cc.ns.Feed.Busy), "a quiet feed is not busy")
 Call(Cc, function()
 	Cc.ns.Feed.Follow("Friend-Forever", true)
@@ -583,6 +590,8 @@ Call(Cc, function()
 	Fake(Cc, "Friend-Forever", 3000, 9999, "a friend, far away")
 end)
 Check(Call(Cc, Cc.ns.Feed.Busy), "130 posts in an hour: a busy feed")
+Call(Cc, Cc.ns.Store.Prune)
+Check(Cc.ns.Store.Get(four.id) == nil and Cc.ns.Store.Get(mention.id) ~= nil, "a busy feed keeps two hours (the four-hour post goes; the mention stays)")
 local tl = Call(Cc, Cc.ns.Feed.Timeline, "realm", 40)
 local friend, far, near = false, 0, 0
 for _, p in ipairs(tl) do
