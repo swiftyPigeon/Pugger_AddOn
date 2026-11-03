@@ -1090,11 +1090,11 @@ function UI.Build()
 	-- icon small at its left when the portrait is off).
 	local hx = slim and 30 or 62
 	if slim then
-		frame.eye = frame:CreateTexture(nil, "ARTWORK")
-		frame.eye:SetSize(18, 18)
-		frame.eye:SetPoint("TOPLEFT", 8, -28)
-		frame.eye:SetTexture(ns.ICON)
-		if frame.eye.SetMask then pcall(frame.eye.SetMask, frame.eye, "Interface\\CharacterFrame\\TempPortraitAlphaMask") end
+		frame.logo = frame:CreateTexture(nil, "ARTWORK")
+		frame.logo:SetSize(18, 18)
+		frame.logo:SetPoint("TOPLEFT", 8, -28)
+		frame.logo:SetTexture(ns.ICON)
+		if frame.logo.SetMask then pcall(frame.logo.SetMask, frame.logo, "Interface\\CharacterFrame\\TempPortraitAlphaMask") end
 	end
 	frame.viewTitle = Font(frame, "title")
 	frame.viewTitle:SetPoint("TOPLEFT", hx, slim and -30 or -32)

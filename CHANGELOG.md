@@ -4,7 +4,7 @@
 - First build: posts (80 characters), follows, likes, reposts, replies, mentions, tags, profiles,
   signed posts and catch-up sync, map calls (rare, camp, quest / farm group, dungeon group at
   meeting stones), mute, block, word filter, backup channels, Phase 0 measurement tools.
-- Named Pugger (was Faxion), with its own logo: an eye in blue, white and black; mentions get a blue @, groups a meeting stone.
+- Named Pugger (was Faxion), with its own logo: an @ in blue, white and black; mentions get a speech bubble, groups a meeting stone.
 - Every post shows the zone and coordinates where it was written (the zone alone in a dungeon);
   a post without one says so.
 - Group calls ask for roles (tank, healer, damage) with the group finder's icons; asks name the
