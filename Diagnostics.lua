@@ -1,9 +1,9 @@
 local ADDON, ns = ...
 
 -- Errors and the bug report (after Guild Master Forever's Diagnostics.lua): errors of the
--- add-on's own files are kept (deduplicated, 40 at most) and /fax bug shows a report to copy,
+-- add-on's own files are kept (deduplicated, 40 at most) and /pug bug shows a report to copy,
 -- with the version, the client, the channel, the queue and the last lines of the log.
--- /fax status: what the add-on sees, in a few lines.
+-- /pug status: what the add-on sees, in a few lines.
 
 local Diagnostics = {}
 ns.Diagnostics = Diagnostics
@@ -34,7 +34,7 @@ local box
 function Diagnostics.ShowCopy(title, text)
 	if not box then
 		local UI = ns.UI
-		box = CreateFrame("Frame", "Faxion_Copy", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+		box = CreateFrame("Frame", "Pugger_Copy", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
 		UI.Backdrop(box, { 1, 1, 1, 1 }, { 1, 1, 1, 1 }, "dialog")
 		box:SetSize(480, 320)
 		box:SetPoint("CENTER")
@@ -42,7 +42,7 @@ function Diagnostics.ShowCopy(title, text)
 		box:EnableMouse(true)
 		box.title = UI.Font(box, "big")
 		box.title:SetPoint("TOPLEFT", 18, -18)
-		local scroll = CreateFrame("ScrollFrame", "Faxion_CopyScroll", box, "UIPanelScrollFrameTemplate")
+		local scroll = CreateFrame("ScrollFrame", "Pugger_CopyScroll", box, "UIPanelScrollFrameTemplate")
 		scroll:SetPoint("TOPLEFT", 18, -40)
 		scroll:SetPoint("BOTTOMRIGHT", -38, 46)
 		local edit = CreateFrame("EditBox", nil, scroll)
@@ -58,7 +58,7 @@ function Diagnostics.ShowCopy(title, text)
 		box.tip = UI.Font(box, nil, { 0.62, 0.58, 0.50 })
 		box.tip:SetPoint("BOTTOMLEFT", 18, 21)
 		box.tip:SetText(ns.L.COPY_TIP)
-		if UISpecialFrames then table.insert(UISpecialFrames, "Faxion_Copy") end
+		if UISpecialFrames then table.insert(UISpecialFrames, "Pugger_Copy") end
 	end
 	box.title:SetText(title or "")
 	box.edit:SetText(text or "")
@@ -70,7 +70,7 @@ end
 function Diagnostics.Status()
 	local Comm, Sync, Store = ns.Comm, ns.Sync, ns.Store
 	local lines = {
-		("Faxion %s · %s · %s"):format(ns.VERSION, tostring(ns.me), tostring(ns.faction)),
+		("Pugger %s · %s · %s"):format(ns.VERSION, tostring(ns.me), tostring(ns.faction)),
 		("Channel: %s (%s)%s"):format(tostring(Comm.ChannelName() or "-"), Comm.Ready() and "joined" or "not joined",
 			ns.TestNet() and (" · test transport " .. ns.TestNet()) or ""),
 		("Posts held: %d · profiles: %d · following: %d · key: %s"):format(Store.Total(), ns.Count(ns.rdb.profiles),
@@ -86,7 +86,7 @@ end
 
 function Diagnostics.Bug()
 	local db = ns.db
-	local out = { "Faxion bug report", Diagnostics.Status(),
+	local out = { "Pugger bug report", Diagnostics.Status(),
 		("Client: %s %s · %s"):format(tostring((GetBuildInfo())), tostring(select(4, GetBuildInfo())), GetLocale and GetLocale() or "?"),
 		"", "Errors:" }
 	if #db.errors == 0 then out[#out + 1] = "  none" end

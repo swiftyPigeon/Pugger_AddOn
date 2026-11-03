@@ -10,15 +10,15 @@ local ADDON, ns = ...
 ns.earlyErrors = {}
 
 -- The errors of the add-on's own files seen this session, deduplicated (nothing of any other
--- add-on's). Kept in the SavedVariables for /fax bug.
+-- add-on's). Kept in the SavedVariables for /pug bug.
 ns.allErrors = {}
 local index = {}
 local others, nOthers = {}, 0 -- the other add-ons' errors seen, 200 at most
 
 -- Ours: the message names one of our files, or a line of the stack does. Not this handler's
 -- own line, which tops every stack it reads.
-local OURS = "AddOns[\\/]Faxion[\\/]"
-local HANDLER = "AddOns[\\/]Faxion[\\/]Bootstrap%.lua"
+local OURS = "AddOns[\\/]Pugger[\\/]"
+local HANDLER = "AddOns[\\/]Pugger[\\/]Bootstrap%.lua"
 function ns.OwnError(msg, stack)
 	if tostring(msg or ""):find(OURS) then return true end
 	for line in tostring(stack or ""):gmatch("[^\n]+") do

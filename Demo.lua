@@ -1,8 +1,8 @@
 local ADDON, ns = ...
 
--- /fax demo: sample posts, profiles and calls around the player, so the window, the tabs, the
+-- /pug demo: sample posts, profiles and calls around the player, so the window, the tabs, the
 -- map pins and the cards can be seen alone. They live in memory only (Store.demo, demo calls):
--- never saved, never sent, gone at /reload or with /fax demo off. Asking to join a sample
+-- never saved, never sent, gone at /reload or with /pug demo off. Asking to join a sample
 -- call answers itself; Invite on a sample ask invites nobody.
 
 local Demo = {}
@@ -81,7 +81,7 @@ function Demo.On()
 	ns.Fire("FEED_CHANGED")
 	ns.Fire("CALLS_CHANGED")
 	ns.UI.Toggle(true)
-	ns.Popups.Card({ key = "demo", title = "Faxion demo", body = ns.L.DEMO_ON, life = 15, sound = false })
+	ns.Popups.Card({ key = "demo", title = "Pugger demo", body = ns.L.DEMO_ON, life = 15, sound = false })
 	ns.Popups.Ask(mineCall, mineCall.asks[Name("Vessa")])
 	ns.Popups.Call(rare)
 	ns.Popups.StonePrompt({ s })

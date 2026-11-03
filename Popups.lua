@@ -224,7 +224,7 @@ local dialog
 local function Dialog()
 	if dialog then return dialog end
 	local UI = UIx()
-	local d = CreateFrame("Frame", "Faxion_Dialog", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+	local d = CreateFrame("Frame", "Pugger_Dialog", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
 	UI.Backdrop(d, { 1, 1, 1, 1 }, { 1, 1, 1, 1 }, "dialog")
 	d:SetSize(320, 150)
 	d:SetPoint("CENTER", 0, 120)
@@ -263,7 +263,7 @@ local function Dialog()
 	d.cancel = UI.Button(d, L.CANCEL, function() d:Hide() end, "line")
 	d.cancel:SetPoint("BOTTOMLEFT", d, "BOTTOM", 3, 16)
 	d.okButton = d.ok
-	if UISpecialFrames then table.insert(UISpecialFrames, "Faxion_Dialog") end
+	if UISpecialFrames then table.insert(UISpecialFrames, "Pugger_Dialog") end
 	dialog = d
 	return d
 end
@@ -309,7 +309,7 @@ function Popups.Dialog(spec)
 end
 
 function Popups.Confirm(text, go)
-	Popups.Dialog({ title = "Faxion", body = text, ok = L.YES, go = go })
+	Popups.Dialog({ title = "Pugger", body = text, ok = L.YES, go = go })
 end
 
 -- A whisper from the add-on's own box (sent with SendChatMessage on the player's Enter or

@@ -1,6 +1,6 @@
 local ADDON, ns = ...
 
--- Transport: one public custom channel per realm and faction ("FaxionA1" / "FaxionH1"), joined and
+-- Transport: one public custom channel per realm and faction ("PuggerA1" / "PuggerH1"), joined and
 -- hidden from the chat windows, with numbered backups for when one is locked; whispers for
 -- answers meant for one player. A send queue keeps to the budget (section 8 of the plan), long
 -- messages go in pieces, and every sender has a flood limit. Built on Guild Master Forever's
@@ -239,7 +239,7 @@ Comm.OnAddonMessage = OnAddonMessage
 
 ---------------------------------------------------------------------------
 -- The channel and its backups. Anyone can own a custom channel and lock it (a password, bans):
--- then the feed moves to the next name, FaxionA2, FaxionA3..., in an order fixed here, so
+-- then the feed moves to the next name, PuggerA2, PuggerA3..., in an order fixed here, so
 -- everyone ends up in the same place. The add-on never uses an owner's powers on anyone.
 ---------------------------------------------------------------------------
 
@@ -321,7 +321,7 @@ Comm.Handle("B1", function(dist, sender, text)
 	end
 end)
 
--- CHAT_MSG_CHANNEL_NOTICE(_USER): (notice, player, language, "5. FaxionA1", player2, ..., baseName)
+-- CHAT_MSG_CHANNEL_NOTICE(_USER): (notice, player, language, "5. PuggerA1", player2, ..., baseName)
 function Comm.OnChannelNotice(notice, player, _, channelName, player2, _, _, _, baseName)
 	if type(issecretvalue) == "function" and (issecretvalue(notice) or issecretvalue(player)) then return end
 	if type(notice) ~= "string" or not joinedName then return end
@@ -347,7 +347,7 @@ function Comm.OnPasswordRequest(channel)
 	end
 end
 
--- After switching the test transport (/fax testnet): onto the channel or off it.
+-- After switching the test transport (/pug testnet): onto the channel or off it.
 function Comm.Reset()
 	wipe(queue)
 	if not ns.TestNet() then Comm.JoinChannel() end

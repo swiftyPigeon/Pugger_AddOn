@@ -1,16 +1,16 @@
 local ADDON, ns = ...
 
 -- Phase 0's measurements, in game on Forever (the plan's section 12). Each writes its result
--- to the SavedVariables (FaxionDB.measure) and prints it; /fax measure report shows them all to
+-- to the SavedVariables (PuggerDB.measure) and prints it; /pug measure report shows them all to
 -- copy. Two or three characters (or friends) with the add-on, on one realm and faction:
---   /fax measure rate <count> <per second>  sends numbered X0 messages on the channel; every
---                                           other client counts what arrived (/fax measure heard)
---   /fax measure logged                     one logged message on the channel: do others get it?
---   /fax measure near                       an add-on message on SAY and YELL: does Forever allow
+--   /pug measure rate <count> <per second>  sends numbered X0 messages on the channel; every
+--                                           other client counts what arrived (/pug measure heard)
+--   /pug measure logged                     one logged message on the channel: do others get it?
+--   /pug measure near                       an add-on message on SAY and YELL: does Forever allow
 --                                           them, and how far do they reach?
---   /fax measure sign                       Ed25519 sign and verify, timed in this client
---   /fax measure events                     every event for 20 s: use a meeting stone meanwhile
---   /fax measure report                     everything above, to copy into the results note
+--   /pug measure sign                       Ed25519 sign and verify, timed in this client
+--   /pug measure events                     every event for 20 s: use a meeting stone meanwhile
+--   /pug measure report                     everything above, to copy into the results note
 
 local Measure = {}
 ns.Measure = Measure
@@ -71,7 +71,7 @@ end
 function Measure.Logged()
 	if not ns.Comm.Ready() then return ns.Print(ns.L.NOT_CONNECTED) end
 	ns.Comm.Send("X1~logged~" .. ns.Now(), { logged = true })
-	ns.Print("logged test sent: the others type /fax measure report")
+	ns.Print("logged test sent: the others type /pug measure report")
 end
 ns.Comm.Handle("X1", function(dist, sender, text, logged)
 	local kind = text:match("^X1~(%a+)~")
@@ -102,7 +102,7 @@ ns.On("LOGIN", function()
 end)
 
 function Measure.Sign()
-	local seed = Ed.SHA512("faxion measure"):sub(1, 32)
+	local seed = Ed.SHA512("pugger measure"):sub(1, 32)
 	local t0 = debugprofilestop()
 	local pk = Ed.PublicKey(seed)
 	local t1 = debugprofilestop()
@@ -135,7 +135,7 @@ function Measure.Events()
 end
 
 function Measure.Report()
-	local out = { "Faxion Phase 0 results", ns.Diagnostics.Status(), "" }
+	local out = { "Pugger Phase 0 results", ns.Diagnostics.Status(), "" }
 	local function Dump(k, v, indent)
 		if type(v) == "table" then
 			out[#out + 1] = indent .. tostring(k) .. ":"
@@ -151,7 +151,7 @@ function Measure.Report()
 	for k in pairs(ns.db.measure) do keys[#keys + 1] = k end
 	table.sort(keys)
 	for _, k in ipairs(keys) do Dump(k, ns.db.measure[k], "") end
-	ns.Diagnostics.ShowCopy("Faxion Phase 0", (table.concat(out, "\n"):gsub("|", "!")))
+	ns.Diagnostics.ShowCopy("Pugger Phase 0", (table.concat(out, "\n"):gsub("|", "!")))
 end
 
 function Measure.Slash(rest)
@@ -164,5 +164,5 @@ function Measure.Slash(rest)
 	if cmd == "events" then return Measure.Events() end
 	if cmd == "report" then return Measure.Report() end
 	if cmd == "clear" then wipe(ns.db.measure) wipe(heard) return ns.Print("measurements cleared") end
-	ns.Print("/fax measure rate <count> <per second> | heard | logged | near | sign | events | report | clear")
+	ns.Print("/pug measure rate <count> <per second> | heard | logged | near | sign | events | report | clear")
 end

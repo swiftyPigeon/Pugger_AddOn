@@ -2,7 +2,7 @@ local ADDON, ns = ...
 
 -- The one short note before the first post or call (once per account): posts are public to
 -- everyone on the realm and faction with the add-on, and deleting isn't guaranteed. Reading
--- needs nothing. /fax privacy shows the whole page again: the honest limits, said plainly.
+-- needs nothing. /pug privacy shows the whole page again: the honest limits, said plainly.
 
 local Consent = {}
 ns.Consent = Consent

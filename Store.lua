@@ -8,7 +8,7 @@ local ADDON, ns = ...
 --                 s = signature, v = "direct"|"ok"|nil (checked), lk = { [liker] = true },
 --                 lc = likes count heard, rc = reposts count heard }
 --   tombs[id] = { at = when deleted, a = author, s = signature }
--- Demo posts (/fax demo) live in memory only and never leave the client.
+-- Demo posts (/pug demo) live in memory only and never leave the client.
 
 local Store = {}
 ns.Store = Store

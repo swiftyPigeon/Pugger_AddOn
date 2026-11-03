@@ -47,7 +47,7 @@ function Feed.Post(text, opt, done)
 	done = done or function() end
 	local why = Feed.Check(text, opt.repost ~= nil)
 	if why then return done(false, why) end
-	-- A reply to a sample post (/fax demo) stays a sample: shown here, never sent.
+	-- A reply to a sample post (/pug demo) stays a sample: shown here, never sent.
 	local root = opt.reply and Feed.Root(opt.reply)
 	if root and Store.demo[root] then
 		local t = ns.Now()

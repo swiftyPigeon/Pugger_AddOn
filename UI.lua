@@ -2,7 +2,7 @@ local ADDON, ns = ...
 
 -- The feed's own window (section 9 of the plan), built from the game's own frames so it looks
 -- like it belongs in WoW, as Guild Master Forever's does: the portrait frame (stone border, title
--- bar, close button, the Faxion icon in the round portrait), a dark inset holding the feed with
+-- bar, close button, the Pugger icon in the round portrait), a dark inset holding the feed with
 -- the game's scroll bar, the game's red panel buttons, tooltip-bordered cards, and icon tabs
 -- hanging off both sides (RightSideTabTemplate, Guild Master Forever's SideTab): Realm,
 -- Following, Mentions on the left; Groups, Nearby, Me on the right.
@@ -70,7 +70,7 @@ UI.Template = Template
 
 -- The mockup's fonts, bundled (media/fonts, SIL Open Font License): Cinzel for titles, Source
 -- Sans 3 for everything else. Font objects of our own; the game's own fonts are untouched.
-local FONT_DIR = "Interface\\AddOns\\Faxion\\media\\fonts\\"
+local FONT_DIR = "Interface\\AddOns\\Pugger\\media\\fonts\\"
 local FONT_DEFS = {
 	title = { "Cinzel-Bold.ttf", 15 },      -- the view's name beside the portrait
 	big = { "SourceSans3-Bold.ttf", 13 },   -- names, card titles
@@ -84,7 +84,7 @@ local fontObjects = {}
 local function FontObject(kind)
 	if fontObjects[kind] then return fontObjects[kind] end
 	local def = FONT_DEFS[kind] or FONT_DEFS.small
-	local f = CreateFont("Faxion_Font_" .. kind)
+	local f = CreateFont("Pugger_Font_" .. kind)
 	-- (SetFont returns nothing on some clients: GetFont says whether the file took.)
 	if f and f.SetFont then pcall(f.SetFont, f, FONT_DIR .. def[1], def[2], "") end
 	if not (f and f.GetFont and f:GetFont()) then
@@ -249,7 +249,7 @@ end
 local menu
 
 ---------------------------------------------------------------------------
--- Text: links, #tags and @mentions made clickable (fax: links, read by the row itself, never
+-- Text: links, #tags and @mentions made clickable (pug: links, read by the row itself, never
 -- by SetItemRef).
 ---------------------------------------------------------------------------
 
@@ -258,11 +258,11 @@ local function Decorate(s)
 	local function Plain(seg)
 		seg = seg:gsub("([%s%p]?)#([%w_]+)", function(pre, tag)
 			if pre == "|" then return pre .. "#" .. tag end
-			return ("%s|Hfax:tag:%s|h|c%s#%s|r|h"):format(pre, tag:lower(), C.tag, tag)
+			return ("%s|Hpug:tag:%s|h|c%s#%s|r|h"):format(pre, tag:lower(), C.tag, tag)
 		end)
 		seg = seg:gsub("([%s%p]?)@([%a\128-\255]+)", function(pre, name)
 			if pre == "|" then return pre .. "@" .. name end
-			return ("%s|Hfax:at:%s|h|c%s@%s|r|h"):format(pre, name:lower(), C.tag, name)
+			return ("%s|Hpug:at:%s|h|c%s@%s|r|h"):format(pre, name:lower(), C.tag, name)
 		end)
 		return seg
 	end
@@ -377,9 +377,9 @@ local function OnLinkEnter(self, link)
 	end
 end
 local function OnLinkClick(self, link, text)
-	local tag = link:match("^fax:tag:(.+)$")
+	local tag = link:match("^pug:tag:(.+)$")
 	if tag then return UI.Open({ tag = tag }) end
-	local at = link:match("^fax:at:(.+)$")
+	local at = link:match("^pug:at:(.+)$")
 	if at then return UI.OpenName(at) end
 	local kind = link:match("^(%a+):")
 	if kind and Codec.LINK_TYPES[kind] and IsShiftKeyDown and IsShiftKeyDown() then UI.InsertLink(text) end
@@ -853,7 +853,7 @@ end
 local function Compose(parent)
 	local box = CreateFrame("Frame", nil, parent)
 	box:SetHeight(72)
-	local edit = CreateFrame("EditBox", "Faxion_ComposeBox", box, BackdropTemplateMixin and "BackdropTemplate" or nil)
+	local edit = CreateFrame("EditBox", "Pugger_ComposeBox", box, BackdropTemplateMixin and "BackdropTemplate" or nil)
 	Backdrop(edit, RGB("120f0b"), RGB("4a3c24"))
 	edit:SetMultiLine(true)
 	edit:SetTextInsets(7, 7, 6, 6)
@@ -968,11 +968,11 @@ function UI.Build()
 	ns.cdb.window = ns.cdb.window or { shown = true }
 	local w = ns.cdb.window
 	local templated
-	frame, templated = Template("Frame", "Faxion_Feed", UIParent, "PortraitFrameTemplate")
+	frame, templated = Template("Frame", "Pugger_Feed", UIParent, "PortraitFrameTemplate")
 	frame.hasPortrait = templated and type(frame.CloseButton) == "table"
 	if not frame.hasPortrait then
 		frame:Hide()
-		frame = Template("Frame", "Faxion_FeedBasic", UIParent, "BasicFrameTemplateWithInset")
+		frame = Template("Frame", "Pugger_FeedBasic", UIParent, "BasicFrameTemplateWithInset")
 	end
 	frame:SetSize(UI.WIDTH, UI.SavedHeight())
 	frame:SetFrameStrata("MEDIUM")
@@ -995,18 +995,18 @@ function UI.Build()
 	-- HideUIPanel, which does nothing in combat).
 	if type(frame.CloseButton) == "table" then frame.CloseButton:SetScript("OnClick", function() UI.Toggle(false) end) end
 
-	-- The portrait: the Faxion icon in the round frame.
+	-- The portrait: the Pugger icon in the round frame.
 	local portrait = frame.portrait or frame.Portrait or (type(frame.PortraitContainer) == "table" and frame.PortraitContainer.portrait)
 	if type(portrait) ~= "table" then portrait = nil end
 	if portrait then
 		portrait:SetTexture(ns.ICON)
-		if portrait.SetMask and not portrait.faxMasked then
-			portrait.faxMasked = pcall(portrait.SetMask, portrait, "Interface\\CharacterFrame\\TempPortraitAlphaMask")
+		if portrait.SetMask and not portrait.pugMasked then
+			portrait.pugMasked = pcall(portrait.SetMask, portrait, "Interface\\CharacterFrame\\TempPortraitAlphaMask")
 		end
 	elseif frame.SetPortraitToAsset then
 		pcall(frame.SetPortraitToAsset, frame, ns.ICON)
 	end
-	SetTitle("Faxion")
+	SetTitle("Pugger")
 
 	-- The header beside the portrait: what this view is, and its buttons.
 	local hx = frame.hasPortrait and 62 or 12
@@ -1035,7 +1035,7 @@ function UI.Build()
 	inset.tint:SetPoint("TOPLEFT", 3, -3)
 	inset.tint:SetPoint("BOTTOMRIGHT", -3, 3)
 	inset.tint:SetColorTexture(unpack(C.panel))
-	local scroll = Template("ScrollFrame", "Faxion_FeedScroll", inset, "UIPanelScrollFrameTemplate")
+	local scroll = Template("ScrollFrame", "Pugger_FeedScroll", inset, "UIPanelScrollFrameTemplate")
 	scroll:SetPoint("TOPLEFT", 4, -4)
 	scroll:SetPoint("BOTTOMRIGHT", -26, 4)
 	local content = CreateFrame("Frame", nil, scroll)
@@ -1153,7 +1153,7 @@ function UI.Render()
 	dirty, lastDraw = false, GetTime()
 	if view.tab == "mentions" and not view.sub then ns.rdb.unreadMentions = 0 end
 	local title = Title()
-	SetTitle("Faxion · " .. title)
+	SetTitle("Pugger · " .. title)
 	if view.sub and view.sub.author then
 		frame.viewTitle:SetText((UI.Who(view.sub.author)))
 	else
@@ -1325,7 +1325,7 @@ function UI.PostMenu(anchor, id)
 		items[#items + 1] = { text = L.BLOCK, go = function() ns.Safety.Block(p.a, true) end }
 		items[#items + 1] = { text = L.REPORT, go = function() ns.Safety.Report(p.a) end }
 	end
-	items[#items + 1] = { text = L.COPY_LINK, go = function() ns.Diagnostics.ShowCopy(L.COPY_LINK, "faxion:" .. id) end }
+	items[#items + 1] = { text = L.COPY_LINK, go = function() ns.Diagnostics.ShowCopy(L.COPY_LINK, "pugger:" .. id) end }
 	Menu():Open(anchor, items)
 end
 
@@ -1390,7 +1390,7 @@ end
 
 local function MinimapButton()
 	if ns.db.settings.hideMinimap or not Minimap then return end
-	local b = CreateFrame("Button", "Faxion_MinimapButton", Minimap)
+	local b = CreateFrame("Button", "Pugger_MinimapButton", Minimap)
 	b:SetSize(31, 31)
 	b:SetFrameStrata("MEDIUM")
 	b:SetFrameLevel(8)
@@ -1426,7 +1426,7 @@ local function MinimapButton()
 	b:SetScript("OnDragStop", function(self) self:SetScript("OnUpdate", nil) end)
 	b:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-		GameTooltip:AddLine("Faxion")
+		GameTooltip:AddLine("Pugger")
 		GameTooltip:AddLine(L.MINIMAP_TIP, 1, 1, 1, true)
 		GameTooltip:Show()
 	end)
@@ -1434,9 +1434,9 @@ local function MinimapButton()
 end
 
 -- The key binding (Bindings.xml).
-function Faxion_ToggleBinding() ns.SafeCall("binding", UI.Toggle) end
-BINDING_HEADER_FAXION = "Faxion"
-BINDING_NAME_FAXION_TOGGLE = "Toggle the Faxion feed"
+function Pugger_ToggleBinding() ns.SafeCall("binding", UI.Toggle) end
+BINDING_HEADER_PUGGER = "Pugger"
+BINDING_NAME_PUGGER_TOGGLE = "Toggle the Pugger feed"
 
 ns.On("LOGIN", function()
 	UI.Build()

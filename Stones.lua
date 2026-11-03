@@ -3,12 +3,12 @@ local ADDON, ns = ...
 -- Every dungeon's meeting stone: the dungeon, the zones its stone stands in (Classic uiMapIDs),
 -- the level range the game suggests, and the stone's spot on the zone map (x, y from 0 to 1).
 --
--- The spots are left empty until someone stands at each stone and types /fax stone here
+-- The spots are left empty until someone stands at each stone and types /pug stone here
 -- <dungeon> (Phase 0): a guessed spot would refuse honest calls 30 yards away. A stone with a spot
 -- is checked both ways: the prompt comes within NEAR yards of it, and a call made far from it is
 -- dropped by everyone. Without a spot, the prompt comes when the player uses the stone (the
 -- summoning spell, Calls.lua) and receivers can't check the call's position.
--- Paste what /fax stone export prints here, once checked.
+-- Paste what /pug stone export prints here, once checked.
 --
 -- Until then, players' clients learn the spots from each other, silently (the gossip, below).
 
@@ -95,7 +95,7 @@ function Stones.OfZone(mapID)
 	return out
 end
 
--- /fax stone here <key>: this player's spot as that stone's.
+-- /pug stone here <key>: this player's spot as that stone's.
 function Stones.Record(key)
 	local s = byKey[tostring(key or ""):lower()]
 	if not s then
@@ -111,7 +111,7 @@ function Stones.Record(key)
 	Stones.Sighted(map, x, y, s.key, true)
 end
 
--- /fax stone export: the spots this player recorded, then the ones the players agreed on, as
+-- /pug stone export: the spots this player recorded, then the ones the players agreed on, as
 -- lines for the table above.
 function Stones.Export()
 	local lines = {}
@@ -132,7 +132,7 @@ end
 -- The gossip: the players' clients learn the stones' spots from each other, silently.
 --
 -- Sightings: a client's own, first-hand records (ns.db.stoneSeen): a stone its player hovered over
--- (the game's tooltip names it), recorded with /fax stone here, or started a dungeon group at.
+-- (the game's tooltip names it), recorded with /pug stone here, or started a dungeon group at.
 -- Reports: hovering over a stone no spot is agreed for yet sends ONE report on the channel
 -- (S1~map~x~y~key), once per stone ever. Clients holding a first-hand sighting near it answer
 -- (S2, same fields) after a random 2-10 s, until ANSWERS answers were heard: a report costs at most
@@ -141,7 +141,7 @@ end
 -- CLUSTER yards; the player's own sighting is one vote too. VOTES votes from different players
 -- make the spot agreed. Only first-hand sightings answer, never a spot learned from others, so a
 -- liar's spot is never echoed: a fake spot needs VOTES real players who stood where no stone is.
--- Which dungeon: the keys named by votes (calls, /fax stone here); else, on Forever, the zone's
+-- Which dungeon: the keys named by votes (calls, /pug stone here); else, on Forever, the zone's
 -- only stone (Blackrock Mountain's one stone counts once). Agreed spots only help (the prompt,
 -- the badge); they never drop a call (Stones.TableSpot does that).
 ---------------------------------------------------------------------------
@@ -304,7 +304,7 @@ function Stones.Agreed(key)
 	if best then return best.map, best.x, best.y, bestVotes end
 end
 
--- For /fax status: spots in the table, recorded here, agreed by the players.
+-- For /pug status: spots in the table, recorded here, agreed by the players.
 function Stones.Counts()
 	local table_, recorded, agreed = 0, ns.Count(ns.db.stones), 0
 	for _, s in ipairs(Stones.LIST) do

@@ -1,6 +1,6 @@
 local ADDON, ns = ...
 
--- Commands: /faxion, and /fax unless another add-on already has it.
+-- Commands: /pugger, and /pug unless another add-on already has it.
 
 local L = setmetatable({}, { __index = function(_, k) return ns.L[k] end })
 
@@ -41,7 +41,7 @@ local COMMANDS = {
 		local cmd, arg = rest:match("^(%S*)%s*(.*)$")
 		if cmd == "here" then return ns.Stones.Record(arg) end
 		if cmd == "export" then return ns.Stones.Export() end
-		ns.Print("/fax stone here <dungeon> | export")
+		ns.Print("/pug stone here <dungeon> | export")
 	end,
 	-- Test copies only: the feed over the guild or the party, for clients that refuse add-on
 	-- messages on custom channels (MoP Classic).
@@ -63,14 +63,14 @@ local function Run(msg)
 	ns.SafeCall("slash " .. cmd, fn, rest or "")
 end
 
-SLASH_FAXION1 = "/faxion"
-SlashCmdList.FAXION = Run
+SLASH_PUGGER1 = "/pugger"
+SlashCmdList.PUGGER = Run
 
 ns.On("LOGIN", function()
-	-- /fax only when nobody else uses it.
+	-- /pug only when nobody else uses it.
 	for k, v in pairs(_G) do
-		if type(k) == "string" and k:find("^SLASH_") and type(v) == "string" and v:lower() == "/fax" then return end
+		if type(k) == "string" and k:find("^SLASH_") and type(v) == "string" and v:lower() == "/pug" then return end
 	end
-	SLASH_FAXIONSHORT1 = "/fax"
-	SlashCmdList.FAXIONSHORT = Run
+	SLASH_PUGGERSHORT1 = "/pug"
+	SlashCmdList.PUGGERSHORT = Run
 end)

@@ -1,4 +1,4 @@
--- Faxion's offline test bench: several clients, each a whole copy of the add-on in its own
+-- Pugger's offline test bench: several clients, each a whole copy of the add-on in its own
 -- globals, against a fake WoW API joined by a fake channel, whispers and guild. Time is
 -- simulated; Ed25519 runs for real. Every add-on message is checked against the game's limits
 -- (255 bytes, a 16-character prefix).
@@ -164,7 +164,7 @@ local function Stub(name)
 end
 
 local FILES = {}
-for line in io.lines(ROOT .. "Faxion.toc") do
+for line in io.lines(ROOT .. "Pugger.toc") do
 	line = line:gsub("\r", "")
 	if line ~= "" and not line:find("^#") and not line:find("^libs") then FILES[#FILES + 1] = line end
 end
@@ -309,19 +309,19 @@ local function NewClient(o)
 		setfenv(chunk, env)
 		local prev = current
 		current = c
-		local ok, e = pcall(chunk, "Faxion", ns)
+		local ok, e = pcall(chunk, "Pugger", ns)
 		current = prev
 		if not ok then error("LOAD " .. file .. ": " .. tostring(e)) end
 	end
 	ns.TEST_COPY = o.testCopy
-	if o.db then env.FaxionDB = o.db end
+	if o.db then env.PuggerDB = o.db end
 	clients[c.name] = c
 	return c
 end
 
 local function Login(c)
 	c.online = true
-	Fire(c, "ADDON_LOADED", "Faxion")
+	Fire(c, "ADDON_LOADED", "Pugger")
 	Fire(c, "PLAYER_LOGIN")
 	Fire(c, "PLAYER_ENTERING_WORLD")
 end
@@ -351,7 +351,7 @@ local function Check(cond, what)
 	else failed = failed + 1 print("  FAIL " .. what) end
 end
 local function Errors(c)
-	local db = c.env.FaxionDB
+	local db = c.env.PuggerDB
 	return db and db.errors or {}
 end
 local function PostBy(c, author, text)
@@ -371,8 +371,8 @@ local Cc = NewClient({ name = "Cass", class = "PRIEST", x = 0.95, y = 0.50, leve
 local H = NewClient({ name = "Hork", faction = "Horde" })
 for _, c in ipairs({ A, B, Cc, H }) do Login(c) end
 Advance(90)
-Check(A.chans["FaxionA1"] and B.chans["FaxionA1"] and Cc.chans["FaxionA1"], "Alliance clients joined FaxionA1")
-Check(H.chans["FaxionH1"] and not H.chans["FaxionA1"], "Horde client joined FaxionH1 only")
+Check(A.chans["PuggerA1"] and B.chans["PuggerA1"] and Cc.chans["PuggerA1"], "Alliance clients joined PuggerA1")
+Check(H.chans["PuggerH1"] and not H.chans["PuggerA1"], "Horde client joined PuggerH1 only")
 Check(A.ns.Identity.Ready() and B.ns.Identity.Ready(), "signing keys made")
 Check(A.ns.rdb.profiles[B.full] and A.ns.rdb.profiles[B.full].pk == B.ns.Identity.PublicKey(), "Aria pinned Bran's key from his profile")
 Check(not H.ns.rdb.profiles[A.full], "Horde never hears Alliance profiles")
@@ -382,7 +382,7 @@ local done
 Call(A, A.ns.Feed.Post, "Hello realm #Onyxia @Bran", {}, function(ok, why) done = { ok, why } end)
 Advance(1)
 Check(done == nil, "first post waits for the privacy note")
-Call(A, function() A.env.Faxion_Dialog.ok:Click() end)
+Call(A, function() A.env.Pugger_Dialog.ok:Click() end)
 Advance(10)
 Check(done and done[1], "post sent after OK" .. (done and done[2] and (": " .. done[2]) or ""))
 local pb = PostBy(B, A.full)
@@ -407,7 +407,7 @@ Check(lowWhy ~= nil, "level 9 can't post")
 
 -- An 80-character post with a pin: does it fit one message?
 local before = sent.total
-Call(B, function() B.env.FaxionDB.consented = 1 end)
+Call(B, function() B.env.PuggerDB.consented = 1 end)
 Call(B, B.ns.Feed.Post, string.rep("x", 80), { pin = true }, function() end)
 Advance(5)
 Check(sent.total - before == 1, ("an 80-character post with a pin is one message (%d sent)"):format(sent.total - before))
@@ -420,7 +420,7 @@ Check(A.ns.Store.Likes(pa) == 1 and Cc.ns.Store.Likes(Cc.ns.rdb.posts[pb.id]) ==
 Call(B, B.ns.Feed.Post, "Hi back", { reply = pb.id }, function() end)
 Advance(5)
 Check(A.ns.Store.Replies(pa) == 1, "Aria sees one reply")
-Call(Cc, function() Cc.env.FaxionDB.consented = 1 end)
+Call(Cc, function() Cc.env.PuggerDB.consented = 1 end)
 Call(Cc, Cc.ns.Feed.Repost, pb.id)
 Advance(5)
 Check(A.ns.Store.Reposts(pa) == 1, "Aria sees one repost")
@@ -485,7 +485,7 @@ Check(B.ns.rdb.posts[pb.id] == nil, "the deleted post never came back to Bran")
 
 print("== flood")
 Call(Cc, function()
-	for i = 1, 40 do Cc.env.C_ChatInfo.SendAddonMessage("FAXION", "L1~x:1:1~1", "CHANNEL", Cc.chans.FaxionA1) end
+	for i = 1, 40 do Cc.env.C_ChatInfo.SendAddonMessage("PUGGER", "L1~x:1:1~1", "CHANNEL", Cc.chans.PuggerA1) end
 end)
 Advance(2)
 Check(A.ns.Comm.stats.flood >= 1, "a burst of 40 messages is cut off")
@@ -501,7 +501,7 @@ for i = 1, 3000 do
 	local kinds = { "P1~", "D1~", "L1~", "R1~", "H1~", "I1~", "Q1~", "C1~", "M1~", "M2~", "J1~", "J2~", "B1~", "O1~", "C1:1:2:" }
 	if i % 2 == 0 then s = kinds[math.random(#kinds)] .. s:gsub("~", "") .. "~" .. s end
 	local dist = i % 3 == 0 and "WHISPER" or "CHANNEL"
-	Call(A, A.ns.Comm.OnAddonMessage, "FAXION", s:sub(1, 255), dist, "Junk" .. (i % 5) .. "-Forever", "", 0, A.chans.FaxionA1)
+	Call(A, A.ns.Comm.OnAddonMessage, "PUGGER", s:sub(1, 255), dist, "Junk" .. (i % 5) .. "-Forever", "", 0, A.chans.PuggerA1)
 end
 Advance(5)
 Check(#Errors(A) == junkErrors, "3000 garbage messages: no error (" .. (#Errors(A) - junkErrors) .. ")")
@@ -544,8 +544,8 @@ Check(invites[#invites] and invites[#invites].to == "Bran", "Invite sent the gam
 
 -- A dungeon group at the Deadmines stone (its spot recorded first).
 Call(A, A.ns.Stones.Record, "dm")
-Call(B, function() B.env.FaxionDB.stones.dm = { map = 1436, x = 0.5, y = 0.5 } end)
-Call(Cc, function() Cc.env.FaxionDB.stones.dm = { map = 1436, x = 0.5, y = 0.5 } end)
+Call(B, function() B.env.PuggerDB.stones.dm = { map = 1436, x = 0.5, y = 0.5 } end)
+Call(Cc, function() Cc.env.PuggerDB.stones.dm = { map = 1436, x = 0.5, y = 0.5 } end)
 Call(A, A.ns.Calls.Dungeon, "dm", 2)
 Advance(5)
 local dC
@@ -562,7 +562,7 @@ local P = NewClient({ name = "Pell", map = 85, x = 0.40, y = 0.60, level = 20 })
 local Q = NewClient({ name = "Quin", map = 85, x = 0.90, y = 0.90, level = 20 })
 Login(P) Login(Q)
 Advance(60)
-Call(P, function() P.env.FaxionDB.consented = 1 end)
+Call(P, function() P.env.PuggerDB.consented = 1 end)
 Call(P, P.ns.Calls.StartAtStone)
 Check(not Call(P, P.ns.Calls.NearSeenStone), "no stone hovered yet: Look for group says how")
 local tip = { GetUnit = function() return nil end, GetName = function() return "GameTooltip" end }
@@ -576,7 +576,7 @@ Advance(5)
 local seenQ
 for _, c in ipairs(Call(Q, Q.ns.Calls.List, "groups")) do if c.kind == "D" then seenQ = c end end
 Check(seenQ ~= nil, "Quin, on the same zone numbers, sees the Wailing Caverns group")
-Check(P.env.FaxionDB.stones.wc and P.env.FaxionDB.stones.wc.learned, "Pell's client learned the stone's spot")
+Check(P.env.PuggerDB.stones.wc and P.env.PuggerDB.stones.wc.learned, "Pell's client learned the stone's spot")
 P.x = 0.9
 Advance(130)
 Check(not Call(P, P.ns.Calls.NearSeenStone), "walked away and time passed: no longer at the stone")
@@ -617,7 +617,7 @@ Advance(15)
 Check(Kinds("S1") == before, "a stone already agreed is not reported again")
 -- At most two answers to one report, however many saw the stone.
 W[6].x = 0.30
-local sc = Call(W[6], function() return W[6].env.FaxionDB.stoneReported end)
+local sc = Call(W[6], function() return W[6].env.PuggerDB.stoneReported end)
 for k in pairs(sc) do sc[k] = nil end
 local s2 = Kinds("S2")
 Call(W[6], W[6].ns.Stones.Sighted, 1436, 0.30, 0.30, nil, true)
@@ -640,14 +640,14 @@ Advance(5)
 local farCall
 for _, c in ipairs(Call(O, O.ns.Calls.List, "groups")) do if c.caller == Lia.full then farCall = c end end
 Check(farCall ~= nil, "a call far from an agreed spot is not dropped (only the shipped table can do that)")
-Check(select(3, Call(O, O.ns.Stones.Counts)) >= 1, "/fax status counts the agreed stone")
+Check(select(3, Call(O, O.ns.Stones.Counts)) >= 1, "/pug status counts the agreed stone")
 -- The Barrens: three stones in one zone; hovering can't say which, a call names it.
 local Bn = {}
 for i = 1, 3 do Bn[i] = NewClient({ name = "Barren" .. i, map = 1413, x = 0.50 + i * 0.001, y = 0.40, level = 20 }) Login(Bn[i]) end
 Advance(60)
 for i = 1, 3 do Hover(Bn[i]) Advance(15) end
 Check(Call(O, O.ns.Stones.Agreed, "wc") == nil, "the Barrens: three agree there's a stone, but not which dungeon")
-Call(Bn[1], function() Bn[1].env.FaxionDB.consented = 1 end)
+Call(Bn[1], function() Bn[1].env.PuggerDB.consented = 1 end)
 Call(Bn[1], Bn[1].ns.Calls.Dungeon, "wc", 2)
 Advance(10)
 Check(Call(O, O.ns.Stones.Agreed, "wc") ~= nil, "...until a Wailing Caverns call there names it")
@@ -658,20 +658,20 @@ Logout(O) Logout(Lia)
 
 print("== a locked channel")
 -- One player alone saying "moved" moves nobody.
-for i = 1, 5 do Call(E, function() E.env.C_ChatInfo.SendAddonMessage("FAXION", "B1~2", "CHANNEL", E.chans.FaxionA1) end) Advance(2) end
+for i = 1, 5 do Call(E, function() E.env.C_ChatInfo.SendAddonMessage("PUGGER", "B1~2", "CHANNEL", E.chans.PuggerA1) end) Advance(2) end
 Check(A.ns.rdb.channel == 1, "one player's fake \"moved\" moves nobody")
-Call(A, A.ns.Comm.OnChannelNotice, "PASSWORD_CHANGED", "Griefer-Forever", "", "3. FaxionA1", "", "", 0, 0, "FaxionA1")
-Call(B, B.ns.Comm.OnChannelNotice, "PASSWORD_CHANGED", "Griefer-Forever", "", "3. FaxionA1", "", "", 0, 0, "FaxionA1")
-Call(F, F.ns.Comm.OnChannelNotice, "PASSWORD_CHANGED", "Griefer-Forever", "", "3. FaxionA1", "", "", 0, 0, "FaxionA1")
-Call(D, D.ns.Comm.OnChannelNotice, "PASSWORD_CHANGED", "Griefer-Forever", "", "3. FaxionA1", "", "", 0, 0, "FaxionA1")
+Call(A, A.ns.Comm.OnChannelNotice, "PASSWORD_CHANGED", "Griefer-Forever", "", "3. PuggerA1", "", "", 0, 0, "PuggerA1")
+Call(B, B.ns.Comm.OnChannelNotice, "PASSWORD_CHANGED", "Griefer-Forever", "", "3. PuggerA1", "", "", 0, 0, "PuggerA1")
+Call(F, F.ns.Comm.OnChannelNotice, "PASSWORD_CHANGED", "Griefer-Forever", "", "3. PuggerA1", "", "", 0, 0, "PuggerA1")
+Call(D, D.ns.Comm.OnChannelNotice, "PASSWORD_CHANGED", "Griefer-Forever", "", "3. PuggerA1", "", "", 0, 0, "PuggerA1")
 -- (Cass missed the notice: the word of three others on the old channel moves her.)
-locked.FaxionA1 = true
+locked.PuggerA1 = true
 local G2 = NewClient({ name = "Gale" })
 Login(G2)
 Advance(30)
-Check(A.chans.FaxionA2 and B.chans.FaxionA2, "Aria and Bran moved to FaxionA2")
-Check(G2.chans.FaxionA2 ~= nil, "Gale, locked out of FaxionA1, ended up on FaxionA2")
-Check(Cc.chans.FaxionA2 ~= nil, "Cass, who missed the notice, followed when told on the old channel")
+Check(A.chans.PuggerA2 and B.chans.PuggerA2, "Aria and Bran moved to PuggerA2")
+Check(G2.chans.PuggerA2 ~= nil, "Gale, locked out of PuggerA1, ended up on PuggerA2")
+Check(Cc.chans.PuggerA2 ~= nil, "Cass, who missed the notice, followed when told on the old channel")
 
 print("== the window")
 for _, c in ipairs({ A, B }) do
@@ -693,13 +693,13 @@ for _, c in ipairs({ A, B }) do
 		c.ns.MapPins.Refresh()
 		c.ns.Diagnostics.Bug()
 		c.ns.Measure.Report()
-		c.env.SlashCmdList.FAXION("help")
-		c.env.SlashCmdList.FAXION("status")
+		c.env.SlashCmdList.PUGGER("help")
+		c.env.SlashCmdList.PUGGER("status")
 	end)
 end
 Advance(5)
 Check(#Errors(A) == 0 and #Errors(B) == 0, "every tab, the demo, the menus and the reports drew without error")
-local feed = A.env.Faxion_FeedBasic or A.env.Faxion_Feed -- (the stub has no portrait frame)
+local feed = A.env.Pugger_FeedBasic or A.env.Pugger_Feed -- (the stub has no portrait frame)
 Call(A, function()
 	A.ns.UI.Toggle(true)
 	feed:SetHeight(500)
@@ -711,14 +711,14 @@ end)
 Check(feed:GetHeight() == 500, ("collapse, drag, open: back at its height (%s)"):format(tostring(feed:GetHeight())))
 Call(A, function() A.ns.cdb.window.h = 28 end)
 Check(Call(A, A.ns.UI.SavedHeight) == A.ns.UI.HEIGHT, "a 28-pixel saved height (the old bug) opens at the normal height")
-Check(A.env.Faxion_Font_body and A.env.Faxion_Font_body._font[1]:find("SourceSans3%-Regular") ~= nil, "post text in Source Sans 3")
-Check(A.env.Faxion_Font_title and A.env.Faxion_Font_title._font[1]:find("Cinzel") ~= nil, "titles in Cinzel")
+Check(A.env.Pugger_Font_body and A.env.Pugger_Font_body._font[1]:find("SourceSans3%-Regular") ~= nil, "post text in Source Sans 3")
+Check(A.env.Pugger_Font_title and A.env.Pugger_Font_title._font[1]:find("Cinzel") ~= nil, "titles in Cinzel")
 
 print("== the test transport (MoP Classic)")
 local M1 = NewClient({ name = "Mopa", guild = "Test Guild", testCopy = true })
 local M2 = NewClient({ name = "Mopb", guild = "Test Guild", testCopy = true })
 for _, c in ipairs({ M1, M2 }) do
-	c.env.FaxionDB = { testNet = "GUILD", consented = 1 }
+	c.env.PuggerDB = { testNet = "GUILD", consented = 1 }
 	Login(c)
 end
 Advance(60)

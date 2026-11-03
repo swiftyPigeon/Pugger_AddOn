@@ -334,13 +334,13 @@ end
 ---------------------------------------------------------------------------
 
 function Codec.PostSigned(p)
-	return table.concat({ "FAX1P", p.id, p.f or "", p.par or "", p.pin or "", p.x or "" }, "\31")
+	return table.concat({ "PUG1P", p.id, p.f or "", p.par or "", p.pin or "", p.x or "" }, "\31")
 end
 function Codec.DeleteSigned(id, at)
-	return table.concat({ "FAX1D", id, Codec.Base36(at) }, "\31")
+	return table.concat({ "PUG1D", id, Codec.Base36(at) }, "\31")
 end
 function Codec.ProfileSigned(name, pr)
-	return table.concat({ "FAX1R", name, pr.pk or "", tostring(pr.level or ""), pr.class or "", pr.guild or "",
+	return table.concat({ "PUG1R", name, pr.pk or "", tostring(pr.level or ""), pr.class or "", pr.guild or "",
 		pr.showFollows and "1" or "0", Codec.Base36(pr.t or 0), pr.bio or "" }, "\31")
 end
 

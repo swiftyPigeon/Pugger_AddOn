@@ -2,7 +2,7 @@ local ADDON, ns = ...
 
 -- The calls on the world map and the minimap, placed with HereBeDragons-Pins (as Guild Master
 -- Forever's Decree.lua and Board.lua), each with a tooltip: what, where, how old, who called.
--- A button at the world map's bottom left opens the switches (also /fax map).
+-- A button at the world map's bottom left opens the switches (also /pug map).
 
 local MapPins = {}
 ns.MapPins = MapPins
@@ -74,7 +74,7 @@ function MapPins.Refresh()
 end
 
 ---------------------------------------------------------------------------
--- The switches: a button on the world map, and /fax map.
+-- The switches: a button on the world map, and /pug map.
 ---------------------------------------------------------------------------
 
 local menu
@@ -101,7 +101,7 @@ local toggle
 local function MapButton()
 	if toggle or type(WorldMapFrame) ~= "table" then return end
 	local parent = type(WorldMapFrame.ScrollContainer) == "table" and WorldMapFrame.ScrollContainer or WorldMapFrame
-	toggle = CreateFrame("Button", "Faxion_MapButton", parent)
+	toggle = CreateFrame("Button", "Pugger_MapButton", parent)
 	-- Round, in the minimap buttons' gold ring; a little in from the bottom-left corner, where
 	-- other add-ons (Guild Master Forever's among them) put their map button.
 	toggle:SetSize(31, 31)
@@ -120,7 +120,7 @@ local function MapButton()
 	toggle:SetScript("OnClick", function(self) MapPins.ToggleMenu(self) end)
 	toggle:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-		GameTooltip:AddLine("Faxion", 0.89, 0.71, 0.36)
+		GameTooltip:AddLine("Pugger", 0.89, 0.71, 0.36)
 		GameTooltip:AddLine(ns.L.MAP_BUTTON_TIP, 1, 1, 1, true)
 		GameTooltip:Show()
 	end)

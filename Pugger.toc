@@ -1,10 +1,10 @@
 ## Interface: 16001
-## Title: |cffe2b65cFaxion|r
-## Notes: Faxion: a public social feed for your realm and faction: posts, follows, likes, replies, rare calls, camps and dungeon groups from meeting stones. No server.
+## Title: |cffe2b65cPugger|r
+## Notes: Pugger: a public social feed for your realm and faction: posts, follows, likes, replies, rare calls, camps and dungeon groups from meeting stones. No server.
 ## Author: SwiftyPigeon512
 ## Version: 0.1.0
-## SavedVariables: FaxionDB
-## IconTexture: Interface\Icons\INV_Letter_15
+## SavedVariables: PuggerDB
+## IconTexture: Interface\AddOns\Pugger\media\logo64
 ## X-License: MIT
 
 Bootstrap.lua

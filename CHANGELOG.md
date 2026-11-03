@@ -4,3 +4,4 @@
 - First build: posts (80 characters), follows, likes, reposts, replies, mentions, tags, profiles,
   signed posts and catch-up sync, map calls (rare, camp, quest / farm group, dungeon group at
   meeting stones), mute, block, word filter, backup channels, Phase 0 measurement tools.
+- Named Pugger (was Faxion), with its own logo: an eye in blue, white and black.

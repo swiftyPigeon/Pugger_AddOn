@@ -4,14 +4,14 @@ local ADDON, ns = ...
 -- timer helpers, and the way names are written, follow Guild Master Forever's Core.lua (MIT,
 -- see LICENSE.txt).
 
-ns.NAME = "Faxion"
+ns.NAME = "Pugger"
 ns.VERSION = "0.1.0"
-ns.PREFIX = "FAXION"                  -- add-on message prefix (16 characters at most)
-ns.CHANNELS = { Alliance = "FaxionA", Horde = "FaxionH" } -- + 1, 2, 3...: the numbered channels
+ns.PREFIX = "PUGGER"                  -- add-on message prefix (16 characters at most)
+ns.CHANNELS = { Alliance = "PuggerA", Horde = "PuggerH" } -- + 1, 2, 3...: the numbered channels
 ns.CHANNEL_MAX = 6                   -- the last backup channel tried
-ns.ICON = "Interface\\Icons\\INV_Letter_15"
+ns.ICON = "Interface\\AddOns\\Pugger\\media\\logo128"  -- the logo, an eye (64 px for the add-on list: the TOC)
 ns.COLOR = "ffe2b65c"                -- the gold of the window's trim
--- Test copies only (tools/install-test-mop.sh sets it; nil in a release): /fax testnet then
+-- Test copies only (tools/install-test-mop.sh sets it; nil in a release): /pug testnet then
 -- sends the feed over the guild or the party instead of the channel (Comm.lua).
 ns.TEST_COPY = nil
 
@@ -172,7 +172,7 @@ end
 function ns.IsMe(name) return name ~= nil and name == ns.me end
 
 ---------------------------------------------------------------------------
--- Log (a ring buffer in the SavedVariables, read by /fax bug)
+-- Log (a ring buffer in the SavedVariables, read by /pug bug)
 ---------------------------------------------------------------------------
 
 function ns.Log(fmt, ...)
@@ -249,7 +249,7 @@ function ns.Every(seconds, where, fn)
 end
 
 ---------------------------------------------------------------------------
--- Saved data. FaxionDB = {
+-- Saved data. PuggerDB = {
 --   settings = {...} (DEFAULTS), log = {}, errors = {},
 --   chars = { [Name-Realm] = { window = {...}, seed = <secret key, base64>, pk = ... } },
 --   feeds = { [Realm-Faction] = the feed this character's realm and faction share (Store.lua) },
@@ -295,8 +295,8 @@ ns.OpenFeed = OpenFeed
 
 ns.RegisterEvent("ADDON_LOADED", function(name)
 	if name ~= ADDON then return end
-	FaxionDB = FaxionDB or {}
-	local db = FaxionDB
+	PuggerDB = PuggerDB or {}
+	local db = PuggerDB
 	ns.db = db
 	db.settings = db.settings or {}
 	Fill(db.settings, DEFAULTS)
@@ -304,7 +304,7 @@ ns.RegisterEvent("ADDON_LOADED", function(name)
 	db.errors = db.errors or {}
 	db.chars = db.chars or {}
 	db.feeds = db.feeds or {}
-	db.stones = db.stones or {}  -- meeting stones this player recorded (/fax stone here)
+	db.stones = db.stones or {}  -- meeting stones this player recorded (/pug stone here)
 	db.measure = db.measure or {} -- Phase 0's results (Measure.lua)
 	ns.Fire("LOADED")
 end)

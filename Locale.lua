@@ -216,41 +216,41 @@ L.DAYS_KEPT = "Days of posts kept: %d"
 L.MAP_CALLS = "Map calls..."
 L.PRIVACY = "Privacy and limits"
 L.MINIMAP_TIP = "Click: show or hide the feed.\nRight-click: settings. Drag: move this button."
-L.MAP_TITLE = "Faxion on the map"
+L.MAP_TITLE = "Pugger on the map"
 L.MAP_RARES = "Rare calls"
 L.MAP_CAMPS = "Camps"
 L.MAP_GROUPS = "Groups"
 L.MAP_RARE_POPUPS = "Cards for rares in my zone"
 L.MAP_GROUP_POPUPS = "Cards for groups near me"
 L.MAP_LEVEL_ONLY = "Group cards only at my level"
-L.MAP_BUTTON_TIP = "Click: which Faxion calls (rares, camps, groups) show on the map, and which make a card."
+L.MAP_BUTTON_TIP = "Click: which Pugger calls (rares, camps, groups) show on the map, and which make a card."
 L.CHANNEL_MOVED = "The feed's channel was locked; it moved to %s."
 
 -- Privacy
 L.CONSENT_TITLE = "Posts are public"
 L.CONSENT_BODY = "Posts are public to everyone on your realm and faction with the add-on. Deleting removes a post from the feed, not from anyone who already saved it."
-L.PRIVACY_TITLE = "Faxion: privacy and limits"
+L.PRIVACY_TITLE = "Pugger: privacy and limits"
 L.PRIVACY_BODY = "Posts, profiles and calls are public to everyone on your realm and faction with the add-on.\n\nDeleting removes a post from the feed, not from anyone who already saved it.\n\nWho you follow stays on your computer unless you choose to show it. Your position is shared only inside a call you make, at the spot you made it.\n\nThere's no server and no company behind the feed to appeal to. Mute, block and the word filter are yours; for abuse, use the game's own report."
 
 -- Stones
 L.STONE_KEYS = "Name the dungeon: %s"
 L.STONE_OTHER_ZONE = "You aren't in the zone the table gives for %s; recorded anyway."
 L.STONE_RECORDED = "%s's stone recorded at map %d (%.1f, %.1f)."
-L.STONE_NONE = "No stones recorded yet: /fax stone here <dungeon> at each one."
+L.STONE_NONE = "No stones recorded yet: /pug stone here <dungeon> at each one."
 L.STONE_EXPORT_TITLE = "Meeting stones recorded"
 
 -- Diagnostics, demo, test copies
-L.BUG_TITLE = "Faxion bug report: Ctrl+C, then paste it into the issue"
+L.BUG_TITLE = "Pugger bug report: Ctrl+C, then paste it into the issue"
 L.COPY_TIP = "Ctrl+C copies the selected text."
-L.DEMO_ON = "Sample posts and calls, only on your screen. /fax demo off removes them."
+L.DEMO_ON = "Sample posts and calls, only on your screen. /pug demo off removes them."
 L.DEMO_OFF = "Samples removed."
 L.DEMO_INVITE = "(Sample: %s would get your invite now.)"
 L.NOT_TEST_COPY = "Only test copies have a test transport."
 L.TESTNET = "Test transport: %s."
 
-L.HELP = [[Commands (/fax or /faxion):
-/fax - show or hide the feed · /fax reset - back under the minimap · /fax lock
-/fax rare - call the rare you target · /fax camp [note] · /fax group [n] [quest]
-/fax map - map switches · /fax bio · /fax filter · /fax mute|block|follow <name>
-/fax privacy · /fax status · /fax bug · /fax demo [off]
-/fax stone here <dungeon> | export · /fax measure (Phase 0 tests)]]
+L.HELP = [[Commands (/pug or /pugger):
+/pug - show or hide the feed · /pug reset - back under the minimap · /pug lock
+/pug rare - call the rare you target · /pug camp [note] · /pug group [n] [quest]
+/pug map - map switches · /pug bio · /pug filter · /pug mute|block|follow <name>
+/pug privacy · /pug status · /pug bug · /pug demo [off]
+/pug stone here <dungeon> | export · /pug measure (Phase 0 tests)]]
