@@ -129,13 +129,19 @@ function Codec.ParseId(id)
 	return author, t, n
 end
 
--- A map pin: "<uiMapID>:<x>:<y>", x and y in ten-thousandths of the map.
+-- A map pin: "<uiMapID>:<x>:<y>", x and y in ten-thousandths of the map; or "<uiMapID>" alone
+-- where the game gives no position (in a dungeon): the zone without coordinates.
 function Codec.EncodePin(mapID, x, y)
-	if not mapID or not x or not y then return "" end
+	if not mapID then return "" end
+	if not x or not y then return ("%d"):format(mapID) end
 	return ("%d:%d:%d"):format(mapID, math.floor(x * 10000 + 0.5), math.floor(y * 10000 + 0.5))
 end
 function Codec.DecodePin(s)
 	if type(s) ~= "string" or s == "" then return nil end
+	if s:match("^%d+$") then
+		local m = Codec.Int(s, 1, 100000)
+		return m, nil, nil
+	end
 	local m, x, y = s:match("^(%d+):(%d+):(%d+)$")
 	m, x, y = Codec.Int(m, 1, 100000), Codec.Int(x, 0, 10000), Codec.Int(y, 0, 10000)
 	if not m or not x or not y then return nil end

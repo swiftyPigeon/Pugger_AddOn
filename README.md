@@ -2,23 +2,33 @@
 
 A public social feed for **WoW: Forever**, inside the game: post, follow, like, reply and repost,
 read a timeline of your realm and faction, and call rares, camps and groups on everyone's map.
-No server outside the game. Main command: **`/pug`**.
+Built on legacy chat: nothing outside the game. Main command: **`/pug`**.
 
-Version **0.1.0**, not released yet (Phase 0 measurements on Forever come first).
+Version **0.1.0**, the first release (2026-11-03).
 
 ## What it does
-- **Posts** of up to 80 characters, with item, spell and quest links (shift-click), a map pin,
-  `#tags` and `@mentions`. Level 10 to post; reading is open to everyone.
-- **Tabs:** Realm, Following, Mentions on the left; Groups, Nearby, Me on the right. Threads one
-  level deep, a tag view, profiles with a short bio.
+- **Posts** of up to 80 characters, with item, spell and quest links (shift-click), `#tags` and
+  `@mentions`. Every post shows the zone and coordinates where it was written (click it for a map
+  pin). Level 10 to post; reading is open to everyone.
+- **Tabs:** your faction's feed (Alliance or Horde), Following, Mentions on the left; Groups,
+  Nearby, Me on the right. Threads one level deep, a tag view, profiles with a short bio.
 - **Map calls:** Rare call (target a real rare), Camp (an hour), Quest / farm group (only players
   within 300 yards ever see it), Dungeon group (only at that dungeon's meeting stone; asks from
   fitting levels anywhere). Nobody is invited without the caller's click.
+- **Roles:** groups ask for a tank, a healer and damage with the group finder's icons. Askers pick
+  a role their class can fill; once invited, that role comes off the call on every card.
+- **Meeting stones:** found from the game's own tooltip; players' add-ons learn each stone's spot
+  from each other, silently.
+- **Quiet in group instances:** in a dungeon, raid, battleground or arena with others, the window
+  steps aside and no cards pop up; on the way out, calls still live (rares, groups, asks to join
+  yours) catch up as cards. A switch in the window's menu.
 - **Safety:** mute, block, word filter, flood limits, signed posts (a relayed post shows only once
   its author's signature checks), backup channels when one is locked.
 
-Posts are public to everyone on your realm and faction with the add-on. Deleting removes a post
-from the feed, not from anyone who already saved it. See `/pug privacy`.
+Posts are public to everyone on your realm and faction with the add-on, and every post shows the
+zone and coordinates where it was written, so anyone can find the player behind it to report or
+mute. Deleting removes a post from the feed, not from anyone who already saved it. See
+`/pug privacy`.
 
 ## Commands
 | Command | What it does |

@@ -20,7 +20,7 @@ local L = setmetatable({}, { __index = function(_, k) return ns.L[k] end })
 UI.WIDTH = 300
 UI.HEIGHT = 470
 UI.MIN_H, UI.MAX_H = 260, 900
-UI.HEAD = 60          -- the title bar and the header beside the portrait
+UI.HEAD = 48          -- the title bar and the thin header under it (56 if the round portrait stays)
 UI.ROW_W = 246        -- a card's width in the list (the inset less the scroll bar)
 UI.REDRAW = 0.3
 UI.ROWS_MAX = 60
@@ -45,17 +45,17 @@ UI.Hex = Hex
 local TABS = {
 	{ key = "realm", side = "left", label = "TAB_REALM", icon = "Interface\\Icons\\INV_Misc_Map_01" },
 	{ key = "following", side = "left", label = "TAB_FOLLOWING", icon = "Interface\\Icons\\Spell_Holy_MindVision" },
-	{ key = "mentions", side = "left", label = "TAB_MENTIONS", icon = "Interface\\Icons\\INV_Letter_15" },
+	{ key = "mentions", side = "left", label = "TAB_MENTIONS", icon = ns.ICON_MENTION },
 	{ key = "groups", side = "right", label = "TAB_GROUPS", icon = "Interface\\Icons\\Spell_Holy_PrayerOfFortitude" },
 	{ key = "nearby", side = "right", label = "TAB_NEARBY", icon = "Interface\\Icons\\INV_Misc_Spyglass_02" },
 	{ key = "me", side = "right", label = "TAB_ME", portrait = true },
 }
 
 local frame
+local combatHidden, quietHidden -- the window put away by the add-on (combat, a group instance), to come back
 local view = { tab = "realm" } -- + sub = { thread = id } | { tag = "x" } | { author = name }
 local dirty, lastDraw = true, 0
 local replyTo -- post id the compose box answers
-local pinOn = false
 
 ---------------------------------------------------------------------------
 -- Small parts
@@ -319,28 +319,60 @@ local function Short(t)
 	return math.floor(d / 86400) .. "d"
 end
 
--- Where the player stands, as a post would show it ("Durotar (45, 12)").
-function UI.MySpot()
-	local m, x, y = ns.Calls.MyPosition()
+-- A place as a post shows it: "Durotar (45, 12)", or the zone alone without coordinates.
+local function Place(m, x, y)
 	if not m then return nil end
+	if not x then return ns.Calls.ZoneName(m) end
 	return ("%s (%d, %d)"):format(ns.Calls.ZoneName(m), x * 100, y * 100)
 end
 
-function UI.PinText(pin)
-	local m, x, y = Codec.DecodePin(pin)
-	if not m then return nil end
-	return ("%s (%d, %d)"):format(ns.Calls.ZoneName(m), x * 100, y * 100)
-end
+-- Where the player is, as their next post will show it.
+function UI.MySpot() return Place(ns.Calls.MyPlace()) end
+
+function UI.PinText(pin) return Place(Codec.DecodePin(pin)) end
 
 ---------------------------------------------------------------------------
 -- Calls as words
 ---------------------------------------------------------------------------
 
+-- The game's round role icons (the group finder's): one texture, a 67-pixel square each.
+UI.ROLE_TEX = "Interface\\LFGFrame\\UI-LFG-ICON-ROLES"
+UI.ROLE_COORDS = { T = { 0, 67, 67, 134 }, H = { 67, 134, 0, 67 }, D = { 67, 134, 67, 134 } }
+
+-- A role's icon inside text, size pixels.
+function UI.RoleIcon(r, size)
+	local q = UI.ROLE_COORDS[r]
+	if not q then return "" end
+	size = size or 14
+	return ("|T%s:%d:%d:0:0:256:256:%d:%d:%d:%d|t"):format(UI.ROLE_TEX, size, size, q[1], q[2], q[3], q[4])
+end
+
+-- A call's roles as icons, one each ("THDD": shield, cross, sword, sword).
+function UI.RoleIcons(roles)
+	local out = {}
+	for r in tostring(roles or ""):gmatch("[THD]") do out[#out + 1] = UI.RoleIcon(r) end
+	return table.concat(out, "")
+end
+
+-- Ask to join: with the role to fill picked from what the call needs and this player's class
+-- can do (one: asked straight away; several: a menu at the button).
+function UI.AskJoin(c, anchor)
+	if not c.roles then return ns.Calls.Ask(c.id) end
+	local roles = ns.Calls.MyRoles(c)
+	if #roles == 1 then return ns.Calls.Ask(c.id, roles[1]) end
+	local items = { { text = L.ASK_AS, title = true } }
+	for _, r in ipairs(roles) do
+		items[#items + 1] = { text = UI.RoleIcon(r, 16) .. "  " .. L["ROLE_" .. r], go = function() ns.Calls.Ask(c.id, r) end }
+	end
+	UI.MenuAt(anchor, items)
+end
+
 function UI.CallTitle(c)
 	if c.kind == "R" then return ("%s (%s)"):format(c.a, ns.Calls.CLASS_NAME[c.b] or "rare") end
 	if c.kind == "C" then return c.note ~= "" and c.note or L.CAMP_DEFAULT end
-	if c.kind == "G" then return L.NEED_N:format(c.need or 1, c.a ~= "" and c.a or L.GROUP_DEFAULT) end
-	if c.kind == "D" then return L.NEED_N:format(c.need or 1, c.stone and c.stone.name or "?") end
+	local what = c.kind == "G" and (c.a ~= "" and c.a or L.GROUP_DEFAULT) or (c.stone and c.stone.name or "?")
+	if c.roles then return L.NEED_ROLES:format(UI.RoleIcons(c.roles), what) end
+	if c.kind == "G" or c.kind == "D" then return L.NEED_N:format(c.need or 1, what) end
 	return "?"
 end
 
@@ -416,9 +448,11 @@ local function NewPostRow(parent)
 	r.pinBtn:SetAllPoints(r.pin)
 	r.pinBtn:SetScript("OnClick", function(self)
 		local m, x, y = Codec.DecodePin(self.pin or "")
-		if m then UI.PinOnMap({ map = m, x = x, y = y, kind = "P" }) end
+		if m and x then UI.PinOnMap({ map = m, x = x, y = y, kind = "P" }) end
 	end)
 	r.pinBtn:SetScript("OnEnter", function(self)
+		local _, x = Codec.DecodePin(self.pin or "")
+		if not x then return end
 		GameTooltip:SetOwner(self, "ANCHOR_TOP")
 		GameTooltip:SetText(L.SPOT_TIP_POST)
 		GameTooltip:Show()
@@ -470,7 +504,9 @@ local function FillPost(r, p)
 	r.text:SetPoint("TOPLEFT", 8, y)
 	r.text:SetText(shownPost.x ~= "" and Decorate(shownPost.x) or Hex(C.dim, L.EMPTY_REPOST))
 	y = y - math.max(13, r.text:GetStringHeight() or 13) - 4
+	-- Every post says where it was written; one without (an old or changed copy) says so.
 	local pinText = shownPost.pin and UI.PinText(shownPost.pin)
+	if not pinText and shownPost.x ~= "" and not shownPost.demo then pinText = Hex(C.dim, L.NO_PLACE) end
 	if pinText then
 		r.pinIcon:ClearAllPoints()
 		r.pinIcon:SetPoint("TOPLEFT", 7, y)
@@ -569,7 +605,7 @@ function UI.CallActions(c)
 		Add(mineVote == "d" and L.SAID_DEAD or L.DEAD, function() Calls.Vote(c.id, "d") end, "line", mineVote == "d")
 	elseif c.kind == "G" or c.kind == "D" then
 		local why = Calls.CantAsk(c)
-		Add(why or L.ASK_JOIN, function() Calls.Ask(c.id) end, "main", why ~= nil)
+		Add(why or L.ASK_JOIN, function(b) UI.AskJoin(c, b) end, "main", why ~= nil)
 	end
 	Add(L.WHISPER, function() ns.Popups.Whisper(c.caller) end)
 	Add(L.PIN, function() UI.PinOnMap(c) end)
@@ -619,7 +655,7 @@ local function FillCall(r, c)
 			b = Button(r, "", nil, a.kind)
 			r.buttons[i] = b
 		end
-		b:SetScript("OnClick", function() if a.go then ns.SafeCall("call action", a.go) end end)
+		b:SetScript("OnClick", function(self) if a.go then ns.SafeCall("call action", a.go, self) end end)
 		b:SetLabel(a.label)
 		b:SetOn(not a.disabled)
 		if x + (b:GetWidth() or 40) > UI.ROW_W - 8 then
@@ -779,6 +815,8 @@ local function Title()
 		if sub.tag then return "#" .. sub.tag end
 		if sub.author then return ns.DisplayName(sub.author) end
 	end
+	-- The Realm tab is named for the player's side: one feed per faction.
+	if view.tab == "realm" and ns.faction then return _G["FACTION_" .. ns.faction:upper()] or ns.faction end
 	return L["TAB_" .. (view.tab):upper()]
 end
 
@@ -821,7 +859,6 @@ function UI.ResetPosition()
 	frame:Show()
 end
 
-local COLLAPSED_H = UI.HEAD + 4
 
 -- The height to open at: the saved one, never below MIN_H (0.1.0's first build saved the
 -- collapsed height when the window was dragged collapsed, and opened at it).
@@ -837,7 +874,7 @@ function UI.ApplyCollapse(collapsed)
 	if collapsed then
 		for _, p in ipairs(parts) do p:Hide() end
 		for _, t in ipairs(frame.tabs) do t:Hide() end
-		frame:SetHeight(COLLAPSED_H)
+		frame:SetHeight(UI.HEAD + 4)
 	else
 		frame.inset:Show()
 		frame.grip:Show()
@@ -852,14 +889,14 @@ end
 -- template reads fields at creation that an add-on can't set first).
 local function Compose(parent)
 	local box = CreateFrame("Frame", nil, parent)
-	box:SetHeight(72)
+	box:SetHeight(88)
 	local edit = CreateFrame("EditBox", "Pugger_ComposeBox", box, BackdropTemplateMixin and "BackdropTemplate" or nil)
 	Backdrop(edit, RGB("120f0b"), RGB("4a3c24"))
 	edit:SetMultiLine(true)
 	edit:SetTextInsets(7, 7, 6, 6)
 	edit:SetPoint("TOPLEFT", 0, 0)
 	edit:SetPoint("TOPRIGHT", 0, 0)
-	edit:SetHeight(46)
+	edit:SetHeight(26)
 	edit:SetAutoFocus(false)
 	edit:SetFontObject(FontObject("body"))
 	edit:SetTextColor(unpack(RGB("ece5d6")))
@@ -869,29 +906,60 @@ local function Compose(parent)
 		if IsShiftKeyDown and IsShiftKeyDown() then self:Insert("\n") return end
 		UI.Send()
 	end)
-	edit:HookScript("OnTextChanged", function() UI.Counter() end)
-	edit:HookScript("OnEditFocusGained", function() UI.Counter() end)
-	edit:HookScript("OnEditFocusLost", function() UI.Counter() end)
+	-- One line until the player writes (focus or text), then tall enough for a whole post.
+	local function Fit()
+		local tall = edit:HasFocus() or (edit:GetText() or "") ~= ""
+		if tall ~= box.tall then
+			box.tall = tall
+			edit:SetHeight(tall and 46 or 26)
+			dirty = true
+		end
+		UI.Counter()
+	end
+	edit:HookScript("OnTextChanged", Fit)
+	edit:HookScript("OnEditFocusGained", Fit)
+	edit:HookScript("OnEditFocusLost", Fit)
+	-- A click anywhere in the box puts the cursor in it (not only on a line of text).
+	edit:HookScript("OnMouseDown", function(self) if not self:HasFocus() then self:SetFocus() end end)
 	edit.placeholder = Font(edit, "dim")
 	edit.placeholder:SetPoint("TOPLEFT", 8, -7)
 	box.edit = edit
-	box.pin = Button(box, L.PIN_OFF, function(b)
-		pinOn = not pinOn
-		UI.Counter()
-		if b:IsMouseOver() then b:GetScript("OnEnter")(b) end
-	end, "line")
-	box.pin:SetScript("OnEnter", function(self)
-		GameTooltip:SetOwner(self, "ANCHOR_TOP")
-		GameTooltip:SetText(pinOn and L.PIN_ON or L.PIN_OFF)
-		GameTooltip:AddLine(L.SPOT_TIP, 1, 1, 1, true)
+	-- Where the next post will say it was written: every post carries it. Kept current while
+	-- the window is open (once a second).
+	local place = CreateFrame("Frame", nil, box)
+	place:SetPoint("TOPLEFT", edit, "BOTTOMLEFT", 0, -2)
+	place:SetPoint("TOPRIGHT", edit, "BOTTOMRIGHT", 0, -2)
+	place:SetHeight(14)
+	place.icon = place:CreateTexture(nil, "ARTWORK")
+	place.icon:SetSize(12, 12)
+	place.icon:SetPoint("LEFT", 1, 0)
+	place.icon:SetTexture("Interface\\Minimap\\Tracking\\None")
+	place.text = Font(place, "gold")
+	place.text:SetPoint("LEFT", place.icon, "RIGHT", 3, 0)
+	place.text:SetPoint("RIGHT", place, "RIGHT", 0, 0)
+	place.text:SetWordWrap(false)
+	function place:Refresh()
 		local here = UI.MySpot()
-		GameTooltip:AddLine(here and L.SPOT_HERE:format(here) or L.NO_POSITION, 0.89, 0.71, 0.36, true)
+		self.text:SetText(here and L.POSTING_FROM:format(here) or L.NO_POSITION)
+	end
+	local since = 1
+	place:SetScript("OnUpdate", function(self, elapsed)
+		since = since + elapsed
+		if since < 1 then return end
+		since = 0
+		self:Refresh()
+	end)
+	place:EnableMouse(true)
+	place:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_TOP")
+		GameTooltip:SetText(L.PLACE_TITLE)
+		GameTooltip:AddLine(L.PLACE_TIP, 1, 1, 1, true)
 		GameTooltip:Show()
 	end)
-	box.pin:SetScript("OnLeave", function() GameTooltip:Hide() end)
-	box.pin:SetPoint("BOTTOMLEFT", 2, 2)
+	place:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	box.place = place
 	box.call = Button(box, L.CALL_MENU, function(b) UI.CallMenu(b) end, "line")
-	box.call:SetPoint("LEFT", box.pin, "RIGHT", 0, 0)
+	box.call:SetPoint("BOTTOMLEFT", 2, 2)
 	box.count = Font(box, "dim")
 	box.count:SetPoint("LEFT", box.call, "RIGHT", 6, 0)
 	box.post = Button(box, L.POST, function() UI.Send() end, "main")
@@ -995,27 +1063,52 @@ function UI.Build()
 	-- HideUIPanel, which does nothing in combat).
 	if type(frame.CloseButton) == "table" then frame.CloseButton:SetScript("OnClick", function() UI.Toggle(false) end) end
 
-	-- The portrait: the Pugger icon in the round frame.
+	-- No round portrait (it made the header tall): the game's own way to take it off, which also
+	-- squares the corner. Where that fails the portrait stays, with the Pugger icon in it.
 	local portrait = frame.portrait or frame.Portrait or (type(frame.PortraitContainer) == "table" and frame.PortraitContainer.portrait)
 	if type(portrait) ~= "table" then portrait = nil end
-	if portrait then
-		portrait:SetTexture(ns.ICON)
-		if portrait.SetMask and not portrait.pugMasked then
-			portrait.pugMasked = pcall(portrait.SetMask, portrait, "Interface\\CharacterFrame\\TempPortraitAlphaMask")
+	local slim = not frame.hasPortrait
+	if frame.hasPortrait and ButtonFrameTemplate_HidePortrait then
+		slim = pcall(ButtonFrameTemplate_HidePortrait, frame) and not (portrait and portrait:IsShown())
+	end
+	if slim then
+		UI.HEAD = 48
+	else
+		UI.HEAD = 56
+		if portrait then
+			portrait:SetTexture(ns.ICON)
+			if portrait.SetMask and not portrait.pugMasked then
+				portrait.pugMasked = pcall(portrait.SetMask, portrait, "Interface\\CharacterFrame\\TempPortraitAlphaMask")
+			end
+		elseif frame.SetPortraitToAsset then
+			pcall(frame.SetPortraitToAsset, frame, ns.ICON)
 		end
-	elseif frame.SetPortraitToAsset then
-		pcall(frame.SetPortraitToAsset, frame, ns.ICON)
 	end
 	SetTitle("Pugger")
 
-	-- The header beside the portrait: what this view is, and its buttons.
-	local hx = frame.hasPortrait and 62 or 12
+	-- The header: what this view is, and its buttons, one row as thick as the buttons (with the
+	-- icon small at its left when the portrait is off).
+	local hx = slim and 30 or 62
+	if slim then
+		frame.eye = frame:CreateTexture(nil, "ARTWORK")
+		frame.eye:SetSize(18, 18)
+		frame.eye:SetPoint("TOPLEFT", 8, -28)
+		frame.eye:SetTexture(ns.ICON)
+		if frame.eye.SetMask then pcall(frame.eye.SetMask, frame.eye, "Interface\\CharacterFrame\\TempPortraitAlphaMask") end
+	end
 	frame.viewTitle = Font(frame, "title")
-	frame.viewTitle:SetPoint("TOPLEFT", hx, -30)
-	frame.hint = Font(frame, "dim")
-	frame.hint:SetPoint("TOPLEFT", frame.viewTitle, "BOTTOMLEFT", 0, -2)
-	frame.hint:SetPoint("RIGHT", frame, "RIGHT", -10, 0)
-	frame.hint:SetWordWrap(false)
+	frame.viewTitle:SetPoint("TOPLEFT", hx, slim and -30 or -32)
+	-- What the view is shows on the title's tooltip (a line of its own took too much height).
+	frame.titleTip = CreateFrame("Frame", nil, frame)
+	frame.titleTip:SetAllPoints(frame.viewTitle)
+	frame.titleTip:EnableMouse(true)
+	frame.titleTip:SetScript("OnEnter", function(self)
+		if not self.hint or self.hint == "" then return end
+		GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
+		GameTooltip:SetText(self.hint, 1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	frame.titleTip:SetScript("OnLeave", function() GameTooltip:Hide() end)
 	frame.menuBtn = Button(frame, L.MENU, function(b) UI.WindowMenu(b) end, "line")
 	frame.menuBtn:SetPoint("TOPRIGHT", -8, -27)
 	frame.collapse = Button(frame, "-", function() UI.ApplyCollapse(not ns.cdb.window.collapsed) end, "line")
@@ -1089,8 +1182,10 @@ function UI.Build()
 	frame:SetScript("OnUpdate", function()
 		if dirty and GetTime() - lastDraw >= UI.REDRAW then UI.Render() end
 	end)
-	frame:SetScript("OnShow", function() dirty = true ns.cdb.window.shown = true end)
-	frame:SetScript("OnHide", function() if not frame.combatHidden then ns.cdb.window.shown = false end end)
+	frame:SetScript("OnShow", function() dirty = true quietHidden = nil ns.cdb.window.shown = true end)
+	frame:SetScript("OnHide", function()
+		if not combatHidden and not quietHidden then ns.cdb.window.shown = false end
+	end)
 	if w.collapsed then UI.ApplyCollapse(true) end
 	frame:Hide()
 	return frame
@@ -1101,16 +1196,16 @@ end
 local function LayoutTop()
 	local tab, sub = view.tab, view.sub
 	local y = UI.HEAD + 2
-	frame.compose:Hide()
-	frame.callbar:Hide()
-	frame.groupbar:Hide()
-	frame.head:Hide()
+	-- Only the parts leaving the view are hidden: hiding the compose box, even for a moment,
+	-- would take the cursor out of it.
+	local placed = {}
 	local function Place(part, h)
 		part:ClearAllPoints()
 		part:SetPoint("TOPLEFT", frame, "TOPLEFT", 6, -y)
 		part:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -6, -y)
 		part:SetHeight(h)
 		part:Show()
+		placed[part] = true
 		y = y + h + 2
 	end
 	if (tab == "me" and not sub) or (sub and sub.author) then
@@ -1141,7 +1236,10 @@ local function LayoutTop()
 	elseif tab == "nearby" and not sub then
 		Place(frame.callbar, 26)
 	elseif (not sub and (tab == "realm" or tab == "following" or tab == "me")) or (sub and sub.thread) then
-		Place(frame.compose, 72)
+		Place(frame.compose, frame.compose.tall and 88 or 68)
+	end
+	for _, part in ipairs({ frame.compose, frame.callbar, frame.groupbar, frame.head }) do
+		if not placed[part] then part:Hide() end
 	end
 	frame.inset:ClearAllPoints()
 	frame.inset:SetPoint("TOPLEFT", frame, "TOPLEFT", 4, -y)
@@ -1153,13 +1251,13 @@ function UI.Render()
 	dirty, lastDraw = false, GetTime()
 	if view.tab == "mentions" and not view.sub then ns.rdb.unreadMentions = 0 end
 	local title = Title()
-	SetTitle("Pugger · " .. title)
+	SetTitle("Pugger")
 	if view.sub and view.sub.author then
 		frame.viewTitle:SetText((UI.Who(view.sub.author)))
 	else
 		frame.viewTitle:SetText(title)
 	end
-	frame.hint:SetText(Hint() or "")
+	frame.titleTip.hint = Hint()
 	if view.sub then frame.back:Show() else frame.back:Hide() end
 	for _, tab in ipairs(frame.tabs) do
 		tab:SetChecked(view.tab == tab.def.key and not view.sub)
@@ -1252,13 +1350,7 @@ function UI.Counter()
 	local max = ns.Feed.MAX_LETTERS
 	box.count:SetText(Hex(n > max - 10 and C.rare or C.dim, ("%d/%d"):format(n, max)))
 	box.edit.placeholder:SetText((text == "" and not box.edit:HasFocus()) and (ns.Safety.CanPost() and L.PLACEHOLDER or L.PLACEHOLDER_LOW) or "")
-	box.pin.kind = pinOn and "main" or "line"
-	box.pin:SetLabel(pinOn and L.PIN_ON or L.PIN_OFF)
-	box.pin:SetOn(true)
-	if pinOn and text == "" and not box.edit:HasFocus() then
-		local here = UI.MySpot()
-		box.edit.placeholder:SetText(here and L.SPOT_ATTACHED:format(here) or L.NO_POSITION)
-	end
+	box.place:Refresh()
 	local p = replyTo and Store.Get(replyTo)
 	if p then
 		box.cancel:Show()
@@ -1284,11 +1376,10 @@ end
 function UI.Send()
 	local edit = frame.compose.edit
 	local text = edit:GetText() or ""
-	ns.Feed.Post(text, { reply = replyTo, pin = pinOn }, function(ok, why)
+	ns.Feed.Post(text, { reply = replyTo }, function(ok, why)
 		if not ok then return ns.Print(why) end
 		edit:SetText("")
 		edit:ClearFocus()
-		pinOn = false
 		dirty = true
 	end)
 end
@@ -1310,6 +1401,9 @@ local function Menu()
 	menu = menu or UI.Menu()
 	return menu
 end
+
+-- The window's menu, opened beside anchor with these items (for the other files).
+function UI.MenuAt(anchor, items) Menu():Open(anchor, items) end
 
 function UI.PostMenu(anchor, id)
 	local p = Store.Get(id)
@@ -1356,6 +1450,7 @@ function UI.WindowMenu(anchor)
 		{ text = L.MENU_WINDOW, title = true },
 		{ text = L.LOCK, check = w.locked == true, go = Flip(w, "locked") },
 		{ text = L.HIDE_IN_COMBAT, check = s.hideInCombat, go = function() s.hideInCombat = not s.hideInCombat end },
+		{ text = L.QUIET_IN_GROUPS, check = s.quietInGroups, go = function() s.quietInGroups = not s.quietInGroups UI.CheckQuiet() end },
 		{ text = L.TRANSPARENCY, go = function()
 			s.alpha = (s.alpha or 1) <= 0.55 and 1 or (s.alpha - 0.15)
 			frame:SetAlpha(s.alpha)
@@ -1450,9 +1545,37 @@ ns.On("LOGIN", function()
 		hooksecurefunc("ChatEdit_InsertLink", function(link) ns.SafeCall("insert link", UI.InsertLink, link) end)
 	end
 	ns.RegisterEvent("PLAYER_REGEN_DISABLED", function()
-		if ns.db.settings.hideInCombat and frame:IsShown() then frame.combatHidden = true frame:Hide() end
+		if ns.db.settings.hideInCombat and frame:IsShown() then combatHidden = true frame:Hide() end
 	end)
 	ns.RegisterEvent("PLAYER_REGEN_ENABLED", function()
-		if frame.combatHidden then frame.combatHidden = nil frame:Show() end
+		if combatHidden then
+			combatHidden = nil
+			if not quietHidden then frame:Show() end
+		end
 	end)
+	for _, e in ipairs({ "PLAYER_ENTERING_WORLD", "ZONE_CHANGED_NEW_AREA", "GROUP_ROSTER_UPDATE" }) do
+		ns.RegisterEvent(e, UI.CheckQuiet)
+	end
+	UI.CheckQuiet()
 end)
+
+-- Quiet in a group instance (ns.Quiet), acted on only as it starts and ends: on the way in the
+-- window steps aside (opened by hand meanwhile, it stays) and the cards close; on the way out
+-- the window comes back and the calls heard meanwhile catch up (Popups.CatchUp).
+local quiet = false
+function UI.CheckQuiet()
+	if not frame then return end
+	local q = ns.Quiet()
+	if q == quiet then return end
+	quiet = q
+	if q then
+		ns.Popups.CloseAll()
+		if frame:IsShown() then quietHidden = true frame:Hide() end
+	else
+		if quietHidden then
+			quietHidden = nil
+			if not combatHidden then frame:Show() end
+		end
+		ns.Popups.CatchUp()
+	end
+end

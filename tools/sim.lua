@@ -121,6 +121,11 @@ function Frame:RegisterAllEvents() end
 function Frame:UnregisterAllEvents() self._events = {} end
 function Frame:SetScript(what, fn) self._scripts[what] = fn end
 function Frame:GetScript(what) return self._scripts[what] end
+function Frame:HookScript(what, fn)
+	local old = self._scripts[what]
+	self._scripts[what] = old and function(...) old(...) fn(...) end or fn
+end
+function Frame:GetParent() return self._parent end
 function Frame:Show() if not self._shown then self._shown = true if self._scripts.OnShow then self._scripts.OnShow(self) end end end
 function Frame:Hide() if self._shown then self._shown = false if self._scripts.OnHide then self._scripts.OnHide(self) end end end
 function Frame:IsShown() return self._shown end
@@ -203,7 +208,11 @@ local function NewClient(o)
 	env.wipe = function(t) for k in pairs(t) do t[k] = nil end return t end
 	env.strsplit = function() end
 	env.Mixin = function(t, ...) for _, m in ipairs({ ... }) do for k, v in pairs(m) do t[k] = v end end return t end
-	env.CreateFrame = function(kind, name) return NewFrame(c, kind, name) end
+	env.CreateFrame = function(kind, name, parent)
+		local f = NewFrame(c, kind, name)
+		f._parent = parent
+		return f
+	end
 	env.CreateFont = function(name)
 		local f = NewFrame(c, "Font", name)
 		f.SetFont = function(self, path, size) self._font = { path, size } end
@@ -408,9 +417,28 @@ Check(lowWhy ~= nil, "level 9 can't post")
 -- An 80-character post with a pin: does it fit one message?
 local before = sent.total
 Call(B, function() B.env.PuggerDB.consented = 1 end)
-Call(B, B.ns.Feed.Post, string.rep("x", 80), { pin = true }, function() end)
+Call(B, B.ns.Feed.Post, string.rep("x", 80), {}, function() end)
 Advance(5)
 Check(sent.total - before == 1, ("an 80-character post with a pin is one message (%d sent)"):format(sent.total - before))
+
+-- Every post says where it was written: zone and coordinates; in a dungeon (no position) the zone.
+local function Newest(c, author)
+	local best
+	for _, p in pairs(c.ns.rdb.posts) do if p.a == author and (not best or p.t > best.t) then best = p end end
+	return best
+end
+local own = Newest(B, B.ns.me)
+Check(own and own.pin and own.pin:find("^%d+:%d+:%d+$") ~= nil, "a post carries its author's zone and coordinates")
+Check(Newest(A, B.ns.me) and Newest(A, B.ns.me).pin == own.pin, "readers get the place with the post")
+local bx, by = B.x, B.y
+B.x, B.y = nil, nil
+Advance(30)
+Call(B, B.ns.Feed.Post, "In a dungeon", {}, function() end)
+Advance(5)
+B.x, B.y = bx, by
+local inside = Newest(A, B.ns.me)
+Check(inside and inside.x == "In a dungeon" and inside.pin == tostring(B.map), "with no position, a post carries the zone alone")
+Check(Call(A, A.ns.UI.PinText, inside.pin) ~= nil, "a zone without coordinates shows as a place")
 
 print("== likes, replies, reposts")
 Call(B, B.ns.Feed.Like, pb.id, true)
@@ -507,6 +535,46 @@ Advance(5)
 Check(#Errors(A) == junkErrors, "3000 garbage messages: no error (" .. (#Errors(A) - junkErrors) .. ")")
 
 Advance(65) -- (Cass's flood ban runs out)
+print("== quiet in group instances")
+-- Bran goes into a dungeon with a group: the window steps aside and no card shows; a rare
+-- called meanwhile catches up as a card on the way out, while it is still up.
+local bFeed = B.env.Pugger_FeedBasic or B.env.Pugger_Feed
+Call(B, function() bFeed:Show() end)
+local inInstance = B.env.IsInInstance
+B.env.IsInInstance = function() return true, "party" end
+B.party = { "Dungeonmate" }
+Fire(B, "PLAYER_ENTERING_WORLD")
+Check(not bFeed:IsShown() and Call(B, B.ns.Popups.Count) == 0, "in a group instance: the window steps aside, no cards")
+A.target = { name = "Quiet Rare", class = "rare", guid = "Creature-0-1-2-3-4-999-0000" }
+Call(A, A.ns.Calls.Rare)
+A.target = nil
+Advance(5)
+Check(Call(B, B.ns.Popups.Count) == 0, "a rare called meanwhile makes no card inside")
+Call(B, B.ns.Feed.Post, "Hey @" .. B.ns.me .. "!", {}, function() end)
+B.env.IsInInstance = inInstance
+B.party = {}
+Fire(B, "PLAYER_ENTERING_WORLD")
+Check(bFeed:IsShown(), "out again: the window is back")
+Check(Call(B, B.ns.Popups.Count) == 1, "out again: the rare still up catches up as one card")
+Call(B, B.ns.Popups.CloseAll)
+
+print("== the compose box keeps the cursor")
+-- A redraw (a new post, the 30-second tick, the box growing as it gets the cursor) never hides
+-- the compose box: hiding it would take the cursor out.
+local box = A.env.Pugger_ComposeBox
+local hidden = 0
+local parent = box:GetParent()
+Check(type(parent) == "table" and parent.SetScript ~= nil, "the compose box has its frame")
+Call(A, function()
+	parent:SetScript("OnHide", function() hidden = hidden + 1 end)
+	A.ns.UI.Open(nil)
+	box:SetFocus()
+	box._scripts.OnEditFocusGained(box) -- (the box grows)
+	A.ns.UI.Render()
+	A.ns.UI.Render() -- (as a new post would; the bench runs no OnUpdate, so drawn by hand)
+end)
+Check(hidden == 0, ("redraws never hide the compose box (%d hides)"):format(hidden))
+
 print("== map calls")
 A.target = { name = "Foe Reaper 4000", class = "rareelite", guid = "Creature-0-1-2-3-4-573-0000" }
 Call(A, A.ns.Calls.Rare)
@@ -541,6 +609,26 @@ local askB = gA and gA.asks[B.full]
 Check(askB and askB.yards == 50, "Aria got Bran's ask, 50 yd away")
 Call(A, A.ns.Calls.Decide, gA.id, B.full, true)
 Check(invites[#invites] and invites[#invites].to == "Bran", "Invite sent the game's invite to Bran")
+
+-- Roles: a quest group needing a tank and two damage. Bran asks as damage; once invited, the
+-- call needs a tank and one damage, on every client.
+Call(A, A.ns.Calls.Group, "Hogger", "DTD")
+Advance(5)
+local rB
+for _, c in ipairs(Call(B, B.ns.Calls.List, "nearby")) do if c.kind == "G" and c.a == "Hogger" then rB = c end end
+Check(rB and rB.roles == "TDD" and rB.need == 3, "the roles reach Bran, in order: tank, damage, damage")
+Check(rB and Call(B, A.ns.UI.CallTitle, rB):find("UI%-LFG%-ICON%-ROLES") ~= nil, "the card shows the role icons")
+local bRoles = Call(B, B.ns.Calls.MyRoles, rB)
+Check(#bRoles >= 1 and bRoles[#bRoles] == "D", "Bran may join as damage")
+Call(B, B.ns.Calls.Ask, rB.id, "H")
+Check(not rB.asked, "nobody asks as a role the group doesn't need")
+Call(B, B.ns.Calls.Ask, rB.id, "D")
+Advance(5)
+local rA = A.ns.Calls.Get(rB.id)
+Check(rA and rA.asks[B.full] and rA.asks[B.full].role == "D", "Aria's card: Bran asks to join as damage")
+Call(A, A.ns.Calls.Decide, rB.id, B.full, true)
+Advance(5)
+Check(rA.roles == "TD" and rB.roles == "TD" and not rA.ended, "invited: the call needs a tank and one damage, for Bran too")
 
 -- A dungeon group at the Deadmines stone (its spot recorded first).
 Call(A, A.ns.Stones.Record, "dm")

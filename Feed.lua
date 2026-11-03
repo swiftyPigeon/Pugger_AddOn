@@ -41,7 +41,9 @@ function Feed.Check(text, isRepost)
 	return nil
 end
 
--- opt: { reply = post id, repost = post id, pin = true (the player's spot) }. done(ok, why).
+-- opt: { reply = post id, repost = post id }. done(ok, why). Every post carries where its author
+-- stood (zone and coordinates): readers can find someone to report or mute, and a name is never
+-- just a name.
 function Feed.Post(text, opt, done)
 	opt = opt or {}
 	done = done or function() end
@@ -68,10 +70,8 @@ function Feed.Post(text, opt, done)
 		elseif opt.reply then
 			p.f, p.par = "p", Feed.Root(opt.reply)
 		end
-		if opt.pin then
-			local mapID, x, y = ns.Calls.MyPosition()
-			if mapID then p.pin = Codec.EncodePin(mapID, x, y) end
-		end
+		local mapID, x, y = ns.Calls.MyPlace()
+		if mapID then p.pin = Codec.EncodePin(mapID, x, y) end
 		ns.Identity.Sign(Codec.PostSigned(p), function(sig)
 			if not sig then return done(false, ns.L.KEY_NOT_READY) end
 			p.s, p.v, p.sv = sig, "direct", true

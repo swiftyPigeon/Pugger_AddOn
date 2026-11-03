@@ -68,16 +68,16 @@ function Demo.On()
 	local rare = Call("R", "Kaelis", 120, { a = "Foe Reaper 4000", b = "R", c = "573", x = x + 0.02, y = y - 0.02 })
 	rare.votes[Name("Kaelis")], rare.votes[Name("Selwyn")] = "u", "u"
 	Call("C", "Mirela", 2100, { note = "Wool and linen, join in", x = x - 0.015, y = y + 0.01 })
-	Call("G", "Orvak", 240, { a = "The Defias Brotherhood", b = "1", c = "18-26", x = x + 0.004, y = y + 0.003 })
+	Call("G", "Orvak", 240, { a = "The Defias Brotherhood", b = "D", c = "18-26", x = x + 0.004, y = y + 0.003 })
 	local stones = ns.Stones.OfZone(map)
 	local s = stones[1] or ns.Stones.Get("dm")
-	Call("D", "Brannoc", 180, { a = s.key, b = "2", c = ("%d-%d"):format(s.lo, s.hi), x = x + 0.01, y = y + 0.01 })
+	Call("D", "Brannoc", 180, { a = s.key, b = "TH", c = ("%d-%d"):format(s.lo, s.hi), x = x + 0.01, y = y + 0.01 })
 	local g = ns.Stones.Get("gnomer")
-	Call("D", "Fizzwick", 540, { a = g.key, b = "1", c = ("%d-%d"):format(g.lo, g.hi), map = g.zones[1], x = 0.25, y = 0.40 })
+	Call("D", "Fizzwick", 540, { a = g.key, b = "H", c = ("%d-%d"):format(g.lo, g.hi), map = g.zones[1], x = 0.25, y = 0.40 })
 	-- One of the player's own, with someone asking: the Invite card.
-	local mineCall = Call("G", me, 60, { a = "Hogger", b = "2", c = "8-14", mine = true })
+	local mineCall = Call("G", me, 60, { a = "Hogger", b = "TD", c = "8-14", mine = true })
 	mineCall.caller = ns.me
-	mineCall.asks[Name("Vessa")] = { name = Name("Vessa"), level = 19, class = "ROGUE", zone = "", yards = 120, state = "waiting", t = now }
+	mineCall.asks[Name("Vessa")] = { name = Name("Vessa"), level = 19, class = "ROGUE", zone = "", yards = 120, role = "D", state = "waiting", t = now }
 	ns.Fire("FEED_CHANGED")
 	ns.Fire("CALLS_CHANGED")
 	ns.UI.Toggle(true)

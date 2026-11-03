@@ -14,9 +14,11 @@ local ADDON, ns = ...
 -- Wire (Codec.lua): M1~kind~cid~map~x~y~expires36~a~b~c~class~note (class: the caller's, for
 -- their name's colour)
 --   R: a = target name, b = classification (e|r|R|w), c = NPC id
---   G: a = quest or spot, b = how many needed, c = "lo-hi"
---   D: a = dungeon key, b = how many needed, c = "lo-hi"
--- M2~caller~cid~u|d|f|x, J1 (ask), J2 (answer).
+--   G: a = quest or spot, b = the roles needed ("THDD": a tank, a healer, two damage; or a
+--      count, 1-4, any role), c = "lo-hi"
+--   D: a = dungeon key, b = the roles needed (as G), c = "lo-hi"
+-- M2~caller~cid~u|d|f|x, J1 (ask, with the role the asker would fill), J2 (answer). The caller
+-- sends M1 again when an invite fills a role: everyone's card shows the roles still needed.
 
 local Calls = {}
 ns.Calls = Calls
@@ -31,6 +33,43 @@ Calls.NOTE_MAX = 80
 -- Phase 0: SAY or YELL instead of the channel for group calls, if Forever carries add-on
 -- messages there (the server's own range then). nil: the channel and the distance check.
 Calls.GROUP_DIST = nil
+
+-- The roles each class can fill (Forever's classes and MoP's); any other class: damage.
+Calls.CLASS_ROLES = { WARRIOR = "TD", PALADIN = "THD", DRUID = "THD", PRIEST = "HD", SHAMAN = "HD",
+	MONK = "THD", DEATHKNIGHT = "TD" }
+Calls.ROLE_ORDER = { "T", "H", "D" }
+
+-- Roles as a group call carries them: tanks, then healers, then damage, 4 at most ("THDD").
+function Calls.Roles(t, h, d)
+	return (("T"):rep(t or 0) .. ("H"):rep(h or 0) .. ("D"):rep(d or 0)):sub(1, 4)
+end
+
+-- How many of each role a roles string holds.
+function Calls.RoleCounts(roles)
+	local n = { T = 0, H = 0, D = 0 }
+	for r in tostring(roles or ""):gmatch("[THD]") do n[r] = n[r] + 1 end
+	return n
+end
+
+-- The roles call c still needs that this player's class can fill, in order (T, H, D).
+function Calls.MyRoles(c)
+	local can = Calls.CLASS_ROLES[select(2, UnitClass("player")) or ""] or "D"
+	local out = {}
+	for _, r in ipairs(Calls.ROLE_ORDER) do
+		if c.roles and c.roles:find(r, 1, true) and can:find(r, 1, true) then out[#out + 1] = r end
+	end
+	return out
+end
+
+-- A group call's need as the wire carries it: the roles ("THDD", sorted, 1 to open at most) or
+-- a count, 1 to open.
+local function Need(need, open)
+	if type(need) == "string" and need:match("^[THD]+$") then
+		local n = Calls.RoleCounts(need)
+		return Calls.Roles(n.T, n.H, n.D):sub(1, open)
+	end
+	return tostring(math.max(1, math.min(open, tonumber(need) or open)))
+end
 
 local CLASS = { elite = "e", rare = "r", rareelite = "R", worldboss = "w" }
 local CLASS_NAME = { e = "elite", r = "rare", R = "rare elite", w = "world boss" }
@@ -59,6 +98,15 @@ function Calls.MyPosition()
 	if pos.GetXY then x, y = pos:GetXY() end
 	if not x or not y or (x == 0 and y == 0) then return nil end
 	return map, x, y
+end
+
+-- Where the player is, for a post: the map and position, or the map alone where the game gives
+-- no position (x, y nil); nil when not even the map is known.
+function Calls.MyPlace()
+	local map, x, y = Calls.MyPosition()
+	if map then return map, x, y end
+	map = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+	return map
 end
 
 -- Yards between two spots on zone maps; nil when they can't be compared (another continent,
@@ -203,6 +251,7 @@ local function Make(kind, map, x, y, fields)
 		votes = {}, asks = {}, mine = true, cls = select(2, UnitClass("player")),
 	}
 	Calls.Read(c)
+	c.total = c.need -- (the roles still needed shrink as invites go out; the party fills against this)
 	c.id = CallId(ns.me, Codec.Base36(cid))
 	active[c.id] = c
 	mine[kind] = c.id
@@ -251,11 +300,11 @@ function Calls.Camp(note)
 	if why then ns.Print(why) end
 end
 
--- A quest or farm group, away from a stone. need: 1-4.
+-- A quest or farm group, away from a stone. need: the roles ("THDD") or a count, 1-4.
 function Calls.Group(what, need, note)
 	local map, x, y = Calls.MyPosition()
 	if not map then return ns.Print(ns.L.NO_POSITION) end
-	need = math.max(1, math.min(4, tonumber(need) or 1))
+	need = Need(need or "1", 4)
 	local lv = UnitLevel("player") or 1
 	local _, why = Make("G", map, x, y, { a = ns.Cut(Codec.Clean(what or ""), 60), b = tostring(need),
 		c = ("%d-%d"):format(math.max(1, lv - 4), lv + 4), note = note })
@@ -269,7 +318,7 @@ function Calls.Dungeon(key, need, note)
 	local map, x, y = Calls.MyPosition()
 	if not map then return ns.Print(ns.L.NO_POSITION) end
 	if not Calls.AtStone(s) then return ns.Print(ns.L.NOT_AT_STONE:format(s.name)) end
-	need = math.max(1, math.min(4, tonumber(need) or (4 - math.max(0, (GetNumGroupMembers and GetNumGroupMembers() or 0) - 1))))
+	need = Need(need, math.max(1, 4 - math.max(0, (GetNumGroupMembers and GetNumGroupMembers() or 0) - 1)))
 	local c, why = Make("D", map, x, y, { a = s.key, b = tostring(need), c = ("%d-%d"):format(s.lo, s.hi), note = note })
 	if why then return ns.Print(why) end
 	-- Learned: that stone's spot, so standing there is enough next time.
@@ -343,7 +392,12 @@ function Calls.Read(c)
 	if c.kind == "G" or c.kind == "D" then
 		local lo, hi = tostring(c.c or ""):match("^(%d+)%-(%d+)$")
 		c.lo, c.hi = tonumber(lo), tonumber(hi)
-		c.need = Codec.Int(c.b, 1, 4) or 1
+		local roles = tostring(c.b or ""):match("^[THD]+$")
+		if roles and #roles <= 4 then
+			c.roles, c.need = roles, #roles
+		else
+			c.roles, c.need = nil, Codec.Int(c.b, 1, 4) or 1
+		end
 	end
 	if c.kind == "D" then c.stone = ns.Stones.Get(c.a) end
 end
@@ -374,8 +428,13 @@ ns.Comm.Handle("M1", function(dist, sender, text)
 	Calls.Read(c)
 	local old = active[c.id]
 	if old then
-		-- Sent again (a renewed camp): the new end time, the votes kept.
+		-- Sent again (a renewed camp; a group with a role filled): the new end time and roles,
+		-- the votes and asks kept.
 		old.expires = c.expires
+		if old.b ~= c.b then
+			old.b = c.b
+			Calls.Read(old)
+		end
 		return Changed()
 	end
 	-- Quest / farm groups never reach anyone farther than GROUP_YARDS.
@@ -434,6 +493,7 @@ end)
 function Calls.CantAsk(c)
 	if c.mine then return ns.L.YOUR_CALL end
 	if c.asked then return ns.L.ASKED end
+	if c.roles and #Calls.MyRoles(c) == 0 then return ns.L.NO_ROLE_FITS end
 	if c.kind == "G" then
 		local d = Calls.DistanceToMe(c.map, c.x, c.y)
 		if not d or d > Calls.GROUP_YARDS then return ns.L.TOO_FAR:format(Calls.GROUP_YARDS) end
@@ -442,10 +502,17 @@ function Calls.CantAsk(c)
 	return nil
 end
 
-function Calls.Ask(id)
+-- role: the one this player would fill ("T", "H" or "D"), when the call names roles.
+function Calls.Ask(id, role)
 	local c = active[id]
 	if not c or Calls.CantAsk(c) then return end
+	if c.roles then
+		local fits = false
+		for _, r in ipairs(Calls.MyRoles(c)) do if r == role then fits = true end end
+		if not fits then return end
+	end
 	c.asked = true
+	c.askedAs = role
 	if c.demo then
 		c.answer = "ok"
 		ns.Print(ns.L.ANSWER_OK:format(ns.DisplayName(c.caller)))
@@ -455,7 +522,8 @@ function Calls.Ask(id)
 	local map, x, y = Calls.MyPosition()
 	local zone = GetRealZoneText and GetRealZoneText() or ""
 	ns.Comm.Send(table.concat({ "J1", Codec.Base36(c.cid), tostring(UnitLevel("player") or 0), class or "",
-		tostring(map or 0), tostring(math.floor((x or 0) * 10000)), tostring(math.floor((y or 0) * 10000)), Codec.Clean(zone) }, "~"),
+		tostring(map or 0), tostring(math.floor((x or 0) * 10000)), tostring(math.floor((y or 0) * 10000)), Codec.Clean(zone),
+		c.roles and role or "" }, "~"),
 		{ to = c.caller, urgent = true })
 	Changed()
 end
@@ -479,8 +547,8 @@ end
 
 ns.Comm.Handle("J1", function(dist, sender, text)
 	if dist ~= "WHISPER" then return end
-	local f = Codec.Fields(text, 8)
-	if #f ~= 8 then return end
+	local f = Codec.Fields(text, 9)
+	if #f < 8 then return end
 	local c = active[CallId(ns.me, f[2])]
 	if not c or not c.mine or c.ended or (c.kind ~= "G" and c.kind ~= "D") then return end
 	if ns.Safety.IsBlocked(sender) then return end
@@ -500,6 +568,11 @@ ns.Comm.Handle("J1", function(dist, sender, text)
 		ask.yards = math.floor(d)
 	end
 	if c.lo and (level < c.lo or level > c.hi) then return Answer(sender, f[2], "no") end
+	if c.roles then
+		local role = (f[9] or ""):match("^[THD]$")
+		if not role or not c.roles:find(role, 1, true) then return Answer(sender, f[2], "role") end
+		ask.role = role
+	end
 	c.asks[sender] = ask
 	if ns.Popups then ns.Popups.Ask(c, ask) end
 	Changed()
@@ -531,6 +604,13 @@ function Calls.Decide(id, name, yes)
 	if C_PartyInfo and C_PartyInfo.InviteUnit then C_PartyInfo.InviteUnit(target) elseif InviteUnit then InviteUnit(target) end
 	Answer(name, Codec.Base36(c.cid), "ok")
 	ns.Log("invited %s to call %s", name, id)
+	-- Their role is filled: the call says what it still needs (or, none left, it is full).
+	if ask.role and c.roles then
+		c.b = c.roles:gsub(ask.role, "", 1)
+		if c.b == "" then return Calls.End(id, "f") end
+		Calls.Read(c)
+		Broadcast(c)
+	end
 	Changed()
 end
 
@@ -678,7 +758,7 @@ local function Tick()
 		end
 		if c.mine and not c.ended and (c.kind == "G" or c.kind == "D") then
 			local size = GetNumGroupMembers and GetNumGroupMembers() or 0
-			if size >= 5 or (size > 0 and size - math.max(1, c.party0 or 1) >= (c.need or 1)) then
+			if size >= 5 or (size > 0 and size - math.max(1, c.party0 or 1) >= (c.total or c.need or 1)) then
 				Calls.End(id, "f")
 			end
 			if c.kind == "D" and c.stone and not c.ended then

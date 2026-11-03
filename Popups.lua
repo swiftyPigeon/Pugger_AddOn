@@ -16,6 +16,10 @@ Popups.CARD_W = 250
 
 local cards = {}   -- shown, top to bottom
 local spare = {}
+-- Quiet in a group instance (ns.Quiet): no cards and no sounds. Calls heard meanwhile, and asks
+-- to join the player's own, are held and caught up on the way out if still live; posts and
+-- mentions are not (the feed and the Mentions tab keep them).
+local held = {}    -- [call id] = true
 
 local function UIx() return ns.UI end
 
@@ -68,6 +72,7 @@ end
 
 -- spec: { key, title, body, kind (UI.KIND key) | color, life, buttons = { { label, go, kind, keep } } }
 function Popups.Card(spec)
+	if ns.Quiet() then return nil end
 	local UI = UIx()
 	if spec.key then
 		for _, c in ipairs(cards) do if c.key == spec.key then Close(c) break end end
@@ -119,7 +124,7 @@ function Popups.Mention(p)
 	local UI = UIx()
 	local who = UI.Who(p.a)
 	Popups.Card({
-		key = "m" .. p.id, title = L.CARD_MENTION:format(who), icon = "Interface\\Icons\\INV_Letter_15",
+		key = "m" .. p.id, title = L.CARD_MENTION:format(who), icon = ns.ICON_MENTION,
 		body = ns.Codec.Visible(p.x):sub(1, 160),
 		buttons = {
 			{ label = L.OPEN, go = function() UI.Open({ thread = ns.Feed.Root(p.id) }) end, kind = "main" },
@@ -132,6 +137,7 @@ end
 function Popups.Call(c)
 	local s, Calls = ns.db.settings, ns.Calls
 	if c.mine then return end
+	if ns.Quiet() then held[c.id] = true return end
 	local UI = UIx()
 	if c.kind == "R" then
 		if not s.rarePopups or Calls.MyZone() ~= c.map then return end
@@ -154,18 +160,41 @@ function Popups.Call(c)
 end
 
 function Popups.Ask(c, ask)
+	if ns.Quiet() then held[c.id] = true return end
 	local UI = UIx()
 	local class = (LOCALIZED_CLASS_NAMES_MALE or {})[ask.class] or ask.class
 	local where = ask.yards and L.YARDS_AWAY:format(ask.yards) or (ask.zone ~= "" and L.IN_ZONE:format(ask.zone) or "")
 	Popups.Card({
 		key = "a" .. c.id .. ask.name, kind = c.kind, life = Popups.ASK_LIFE,
-		title = L.CARD_ASK:format(UI.Hex(UI.ClassColor(ask.class), ns.DisplayName(ask.name))),
+		title = ask.role and L.CARD_ASK_AS:format(UI.Hex(UI.ClassColor(ask.class), ns.DisplayName(ask.name)), UI.RoleIcon(ask.role) .. " " .. L["ROLE_" .. ask.role])
+			or L.CARD_ASK:format(UI.Hex(UI.ClassColor(ask.class), ns.DisplayName(ask.name))),
 		body = L.ASK_BODY:format(ask.level, class or "?", where, UI.CallTitle(c)),
 		buttons = {
 			{ label = L.INVITE, go = function() ns.Calls.Decide(c.id, ask.name, true) end, kind = "main" },
 			{ label = L.NO, go = function() ns.Calls.Decide(c.id, ask.name, false) end },
 		},
 	})
+end
+
+-- Every card closed (on the way into a group instance).
+function Popups.CloseAll()
+	for i = #cards, 1, -1 do Close(cards[i]) end
+end
+
+-- Cards shown now (for the test bench).
+function Popups.Count() return #cards end
+
+-- On the way out of a group instance: the held calls still live, each as its card (the rare
+-- only if it is in the zone the player is now in, as any card); asks on the player's own calls.
+function Popups.CatchUp()
+	local ids = held
+	held = {}
+	for id in pairs(ids) do
+		local c = ns.Calls.Get(id)
+		if c and ns.Calls.Shown(c) then
+			if c.mine then Popups.ShowAsks(c) else Popups.Call(c) end
+		end
+	end
 end
 
 -- Closes the card made with this key, if it is shown.
@@ -221,6 +250,7 @@ end
 ---------------------------------------------------------------------------
 
 local dialog
+local rolePick, roleMax = nil, 4 -- the dialog's roles: { T, H, D } counts (nil: no roles row), the open spots
 local function Dialog()
 	if dialog then return dialog end
 	local UI = UIx()
@@ -258,6 +288,64 @@ local function Dialog()
 		e.label:SetPoint("BOTTOMLEFT", e, "TOPLEFT", 1, 1)
 		d.edits[i] = e
 	end
+	-- Roles needed (a group call): the group finder's round icons. Tank and healer: needed or
+	-- not; damage counts 1, 2, 3, then none. Never more than the open spots (roleMax).
+	d.roleLabel = UI.Font(d, nil, { 0.62, 0.58, 0.50 })
+	d.roleTotal = UI.Font(d, "gold")
+	d.roleButtons = {}
+	local function RoleTotal() return rolePick.T + rolePick.H + rolePick.D end
+	local function ShowRoles()
+		for r, b in pairs(d.roleButtons) do
+			local n = rolePick[r]
+			b.icon:SetDesaturated(n == 0)
+			b.icon:SetAlpha(n == 0 and 0.45 or 1)
+			b.check:SetShown(n > 0)
+			b.count:SetText(r == "D" and n > 0 and ("x" .. n) or "")
+		end
+		local total = RoleTotal()
+		d.roleTotal:SetText(L.NEEDS_TOTAL:format(total))
+		d.ok:SetOn(total > 0)
+	end
+	for i, r in ipairs({ "T", "H", "D" }) do
+		local b = CreateFrame("Button", nil, d)
+		b:SetSize(36, 36)
+		b.icon = b:CreateTexture(nil, "ARTWORK")
+		b.icon:SetAllPoints()
+		b.icon:SetTexture(UI.ROLE_TEX)
+		local q = UI.ROLE_COORDS[r]
+		b.icon:SetTexCoord(q[1] / 256, q[2] / 256, q[3] / 256, q[4] / 256)
+		b.check = b:CreateTexture(nil, "OVERLAY")
+		b.check:SetSize(18, 18)
+		b.check:SetPoint("BOTTOMLEFT", -4, -4)
+		b.check:SetTexture("Interface\\Buttons\\UI-CheckBox-Check")
+		b.count = UI.Font(b, "big")
+		b.count:SetPoint("BOTTOMRIGHT", 6, -2)
+		b.shine = b:CreateTexture(nil, "HIGHLIGHT")
+		b.shine:SetAllPoints()
+		b.shine:SetTexture(UI.ROLE_TEX)
+		b.shine:SetTexCoord(q[1] / 256, q[2] / 256, q[3] / 256, q[4] / 256)
+		b.shine:SetBlendMode("ADD")
+		b.shine:SetAlpha(0.3)
+		b:SetScript("OnClick", function()
+			local n, room = rolePick[r], roleMax - RoleTotal()
+			if r == "D" then
+				n = (n < 3 and room > 0) and n + 1 or 0
+			else
+				n = (n == 0 and room > 0) and 1 or 0
+			end
+			rolePick[r] = n
+			ShowRoles()
+		end)
+		b:SetScript("OnEnter", function(self)
+			GameTooltip:SetOwner(self, "ANCHOR_TOP")
+			GameTooltip:SetText(L["ROLE_" .. r])
+			GameTooltip:AddLine(r == "D" and L.ROLE_TIP_D or L.ROLE_TIP, 1, 1, 1, true)
+			GameTooltip:Show()
+		end)
+		b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+		d.roleButtons[r] = b
+	end
+	d.ShowRoles = ShowRoles
 	d.ok = UI.Button(d, "OK", nil, "main")
 	d.ok:SetPoint("BOTTOMRIGHT", d, "BOTTOM", -3, 16)
 	d.cancel = UI.Button(d, L.CANCEL, function() d:Hide() end, "line")
@@ -268,7 +356,8 @@ local function Dialog()
 	return d
 end
 
--- spec: { title, body, edits = { { label, text, max } }, ok, cancel (false: none), go = fn(t1, t2) }
+-- spec: { title, body, edits = { { label, text, max } }, roles = { max, pick = "THDD" },
+-- ok, cancel (false: none), go = fn(t1, t2, roles) }
 function Popups.Dialog(spec)
 	local d = Dialog()
 	d.title:SetText(spec.title or "")
@@ -289,11 +378,39 @@ function Popups.Dialog(spec)
 			e:Hide()
 		end
 	end
+	if spec.roles then
+		local n = ns.Calls.RoleCounts(spec.roles.pick)
+		rolePick, roleMax = { T = n.T, H = n.H, D = n.D }, spec.roles.max or 4
+		y = y - 14
+		d.roleLabel:ClearAllPoints()
+		d.roleLabel:SetPoint("TOPLEFT", d, "TOP", -134, y + 13)
+		d.roleLabel:SetText(L.ROLES_NEEDED)
+		d.roleLabel:Show()
+		for i, r in ipairs({ "T", "H", "D" }) do
+			local b = d.roleButtons[r]
+			b:ClearAllPoints()
+			b:SetPoint("TOPLEFT", d, "TOP", -128 + (i - 1) * 52, y - 2)
+			b:Show()
+		end
+		d.roleTotal:ClearAllPoints()
+		d.roleTotal:SetPoint("LEFT", d.roleButtons.D, "RIGHT", 22, 0)
+		d.roleTotal:Show()
+		y = y - 44
+	else
+		rolePick = nil
+		d.roleLabel:Hide()
+		d.roleTotal:Hide()
+		for _, b in pairs(d.roleButtons) do b:Hide() end
+	end
 	d:SetHeight(-y + 50)
 	d.ok:SetLabel(spec.ok or "OK")
+	d.ok:SetOn(true)
+	if rolePick then d.ShowRoles() end
 	d.ok:SetScript("OnClick", function()
+		if rolePick and rolePick.T + rolePick.H + rolePick.D == 0 then return end
 		d:Hide()
-		if spec.go then ns.SafeCall("dialog", spec.go, d.edits[1]:GetText(), d.edits[2]:GetText()) end
+		local roles = rolePick and ns.Calls.Roles(rolePick.T, rolePick.H, rolePick.D)
+		if spec.go then ns.SafeCall("dialog", spec.go, d.edits[1]:GetText(), d.edits[2]:GetText(), roles) end
 	end)
 	d.ok:ClearAllPoints()
 	if spec.cancel == false then
@@ -340,18 +457,21 @@ end
 -- A group call: at a stone (s given) a dungeon group; elsewhere a quest / farm group.
 function Popups.GroupAsk(s)
 	Popups.CloseKey("stone")
+	-- The open spots: a group of five, less the players already in it.
+	local open = math.max(1, 4 - math.max(0, (GetNumGroupMembers and GetNumGroupMembers() or 0) - 1))
 	if s then
-		local need = 4 - math.max(0, (GetNumGroupMembers and GetNumGroupMembers() or 0) - 1)
 		return Popups.Dialog({
 			title = L.STONE_PROMPT:format(s.name), body = L.DUNGEON_BODY:format(s.lo, s.hi),
-			edits = { { label = L.HOW_MANY, text = tostring(math.max(1, need)), max = 1 }, { label = L.NOTE, max = ns.Calls.NOTE_MAX } },
-			ok = L.LOOK_FOR_GROUP, go = function(n, note) ns.Calls.Dungeon(s.key, n, note) end,
+			edits = { { label = L.NOTE, max = ns.Calls.NOTE_MAX } },
+			roles = { max = open, pick = ("THDD"):sub(1, open) },
+			ok = L.LOOK_FOR_GROUP, go = function(note, _, roles) ns.Calls.Dungeon(s.key, roles, note) end,
 		})
 	end
 	Popups.Dialog({
 		title = L.CALL_GROUP, body = L.GROUP_BODY:format(ns.Calls.GROUP_YARDS),
-		edits = { { label = L.GROUP_WHAT, max = 60 }, { label = L.HOW_MANY, text = "1", max = 1 } },
-		ok = L.LOOK_FOR_GROUP, go = function(what, n) ns.Calls.Group(what, n) end,
+		edits = { { label = L.GROUP_WHAT, max = 60 } },
+		roles = { max = open, pick = "D" },
+		ok = L.LOOK_FOR_GROUP, go = function(what, _, roles) ns.Calls.Group(what, roles) end,
 	})
 end
 

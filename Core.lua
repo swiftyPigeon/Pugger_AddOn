@@ -10,6 +10,7 @@ ns.PREFIX = "PUGGER"                  -- add-on message prefix (16 characters at
 ns.CHANNELS = { Alliance = "PuggerA", Horde = "PuggerH" } -- + 1, 2, 3...: the numbered channels
 ns.CHANNEL_MAX = 6                   -- the last backup channel tried
 ns.ICON = "Interface\\AddOns\\Pugger\\media\\logo128"  -- the logo, an eye (64 px for the add-on list: the TOC)
+ns.ICON_MENTION = "Interface\\AddOns\\Pugger\\media\\mention64" -- the Mentions tab and its cards: a blue @
 ns.COLOR = "ffe2b65c"                -- the gold of the window's trim
 -- Test copies only (tools/install-test-mop.sh sets it; nil in a release): /pug testnet then
 -- sends the feed over the guild or the party instead of the channel (Comm.lua).
@@ -31,6 +32,7 @@ local DEFAULTS = {
 	hideMinimap = false,
 	alpha = 1,              -- the window's transparency
 	hideInCombat = false,
+	quietInGroups = true,   -- in a dungeon, raid, battleground or arena with others: no window, no cards
 	debug = false,
 	words = {},             -- the word filter: lower-case words or #tags that hide a post
 }
@@ -228,6 +230,16 @@ eventFrame:SetScript("OnEvent", function(_, event, ...)
 	if not h then return end
 	for i = 1, #h do ns.SafeCall("event " .. event, h[i], ...) end
 end)
+
+-- Quiet: in a group instance (a dungeon, raid, battleground, arena or scenario with at least one
+-- other player), when the player keeps the switch on. The window steps aside and cards wait.
+function ns.Quiet()
+	if not (ns.db and ns.db.settings.quietInGroups) then return false end
+	local inside, kind = false, nil
+	if IsInInstance then inside, kind = IsInInstance() end
+	if not inside or kind == "none" then return false end
+	return (IsInGroup and IsInGroup()) or (GetNumGroupMembers and GetNumGroupMembers() > 1) or false
+end
 
 function ns.After(seconds, where, fn)
 	C_Timer.After(seconds, function() ns.SafeCall(where, fn) end)
