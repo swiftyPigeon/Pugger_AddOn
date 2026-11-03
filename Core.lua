@@ -11,6 +11,7 @@ ns.CHANNELS = { Alliance = "PuggerA", Horde = "PuggerH" } -- + 1, 2, 3...: the n
 ns.CHANNEL_MAX = 6                   -- the last backup channel tried
 ns.ICON = "Interface\\AddOns\\Pugger\\media\\logo128"  -- the logo, an eye (64 px for the add-on list: the TOC)
 ns.ICON_MENTION = "Interface\\AddOns\\Pugger\\media\\mention64" -- the Mentions tab and its cards: a blue @
+ns.ICON_GROUPS = "Interface\\AddOns\\Pugger\\media\\stone64" -- the Groups tab and dungeon groups: a meeting stone
 ns.COLOR = "ffe2b65c"                -- the gold of the window's trim
 -- Test copies only (tools/install-test-mop.sh sets it; nil in a release): /pug testnet then
 -- sends the feed over the guild or the party instead of the channel (Comm.lua).

@@ -46,7 +46,7 @@ local TABS = {
 	{ key = "realm", side = "left", label = "TAB_REALM", icon = "Interface\\Icons\\INV_Misc_Map_01" },
 	{ key = "following", side = "left", label = "TAB_FOLLOWING", icon = "Interface\\Icons\\Spell_Holy_MindVision" },
 	{ key = "mentions", side = "left", label = "TAB_MENTIONS", icon = ns.ICON_MENTION },
-	{ key = "groups", side = "right", label = "TAB_GROUPS", icon = "Interface\\Icons\\Spell_Holy_PrayerOfFortitude" },
+	{ key = "groups", side = "right", label = "TAB_GROUPS", icon = ns.ICON_GROUPS },
 	{ key = "nearby", side = "right", label = "TAB_NEARBY", icon = "Interface\\Icons\\INV_Misc_Spyglass_02" },
 	{ key = "me", side = "right", label = "TAB_ME", portrait = true },
 }
@@ -390,7 +390,7 @@ local KIND = {
 	R = { label = "KIND_RARE", color = C.rare, icon = "Interface\\TargetingFrame\\UI-TargetingFrame-Skull", bg = RGB("2a1715"), border = RGB("8a3b2e") },
 	C = { label = "KIND_CAMP", color = C.camp, icon = "Interface\\Icons\\Spell_Fire_Fire", bg = RGB("1d2016"), border = RGB("5b6b33") },
 	G = { label = "KIND_QUEST", color = C.quest, icon = "Interface\\Icons\\INV_Misc_Note_01", bg = RGB("16202a"), border = RGB("3b6a8a") },
-	D = { label = "KIND_DUNGEON", color = C.dungeon, icon = "Interface\\Icons\\Spell_Holy_PrayerOfFortitude", bg = RGB("18221a"), border = RGB("4f7a45") },
+	D = { label = "KIND_DUNGEON", color = C.dungeon, icon = ns.ICON_GROUPS, bg = RGB("18221a"), border = RGB("4f7a45") },
 }
 UI.KIND = KIND
 
