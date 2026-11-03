@@ -354,6 +354,32 @@ function UI.RoleIcons(roles)
 	return table.concat(out, "")
 end
 
+-- The limits, as the title bar's "i" shows them.
+function UI.LimitsTip(owner)
+	local S, Calls = ns.Safety, ns.Calls
+	GameTooltip:SetOwner(owner, "ANCHOR_BOTTOMLEFT")
+	-- Wide enough that most limits take one line; each its own gold bullet.
+	if GameTooltip.SetMinimumWidth then GameTooltip:SetMinimumWidth(330) end
+	GameTooltip:AddLine(L.LIMITS_TITLE, 1, 0.82, 0)
+	local function Line(text) GameTooltip:AddLine("|cffe2b65c\226\128\162|r  " .. text, 1, 1, 1, true) end
+	local function Head(text) GameTooltip:AddLine(" ") GameTooltip:AddLine(text, 0.89, 0.71, 0.36) end
+	Head(L.LIMITS_POSTS)
+	Line(L.LIMIT_POST_SIZE:format(ns.Feed.MAX_LETTERS, S.LEVEL_TO_POST))
+	Line(L.LIMIT_SPOT:format(S.SPOT_POSTS, math.floor(S.SPOT_WINDOW / 60)))
+	Line(L.LIMIT_SPOT_MOVE:format(S.SPOT_YARDS))
+	Line(L.LIMIT_HOUR:format(S.POSTS_PER_HOUR))
+	Line(L.LIMIT_PLACE)
+	Head(L.LIMITS_CALLS)
+	Line(L.LIMIT_RARE)
+	Line(L.LIMIT_RARE_HOUR:format(Calls.RARE_PER_HOUR, math.floor(Calls.RARE_DEAD_PAUSE / 60)))
+	Line(L.LIMIT_QUEST:format(Calls.GROUP_YARDS))
+	Line(L.LIMIT_DUNGEON:format(Calls.STONE_LEAVE_YARDS))
+	Line(L.LIMIT_CALLS_HOUR:format(Calls.LIMIT.R, Calls.LIMIT.C, Calls.LIMIT.G + Calls.LIMIT.D))
+	GameTooltip:AddLine(" ")
+	GameTooltip:AddLine(L.LIMITS_EVERYONE, 0.62, 0.58, 0.50, true)
+	GameTooltip:Show()
+end
+
 -- The feed's size, under its title's tooltip: online now (and since when it has been counting),
 -- and everyone this client knows a profile of.
 function UI.OnlineTip()
@@ -747,15 +773,24 @@ local function Items()
 		return out
 	end
 	local posts = ns.Feed.Timeline(tab, UI.ROWS_MAX)
+	-- A busy feed says it is focused, and how many it left out; a click shows them all (or back).
+	local busyLine
+	if tab == "realm" and (ns.Feed.leftOut > 0 or ns.Feed.showAll) and ns.Feed.Busy() then
+		busyLine = { line = ns.Feed.showAll and L.BUSY_ALL or L.BUSY_FOCUSED:format(ns.Feed.leftOut),
+			go = function() ns.Feed.showAll = not ns.Feed.showAll dirty = true end }
+	end
 	if tab == "realm" and ns.db.settings.groupsInRealm then
 		local lines = {}
 		for _, c in ipairs(ns.Calls.List("realm")) do
 			lines[#lines + 1] = { t = c.t, line = L.REALM_GROUP_LINE:format(Name(c.caller, c.cls), c.need or 1,
 				Hex(C.dungeon, c.stone and c.stone.name or "?"), ns.Calls.ZoneName(c.map), c.lo or 0, c.hi or 0), go = function() UI.ShowCall(c.id) end }
 		end
-		return Merge(posts, lines)
+		local out = Merge(posts, lines)
+		if busyLine then table.insert(out, 1, busyLine) end
+		return out
 	end
 	local out = {}
+	if busyLine then out[1] = busyLine end
 	for _, p in ipairs(posts) do out[#out + 1] = { post = p } end
 	return out
 end
@@ -1074,6 +1109,25 @@ function UI.Build()
 	-- Its close button hides it itself (as Guild Master Forever's: the template's would call
 	-- HideUIPanel, which does nothing in combat).
 	if type(frame.CloseButton) == "table" then frame.CloseButton:SetScript("OnClick", function() UI.Toggle(false) end) end
+
+	-- The game's yellow "i" in the title bar, beside the close button: the limits that keep the
+	-- feed clean, on hover (the numbers read from the code, so the words never drift from it).
+	local info = CreateFrame("Button", "Pugger_LimitsButton", frame)
+	info:SetSize(20, 20)
+	if type(frame.CloseButton) == "table" then info:SetPoint("RIGHT", frame.CloseButton, "LEFT", 0, 0)
+	else info:SetPoint("TOPRIGHT", -26, -2) end
+	info:SetFrameLevel(frame:GetFrameLevel() + 10)
+	info.icon = info:CreateTexture(nil, "ARTWORK")
+	info.icon:SetSize(18, 18)
+	info.icon:SetPoint("CENTER")
+	info.icon:SetTexture("Interface\\Common\\help-i")
+	info:SetHighlightTexture("Interface\\Common\\help-i", "ADD")
+	info:SetScript("OnEnter", function(self) UI.LimitsTip(self) end)
+	info:SetScript("OnLeave", function()
+		if GameTooltip.SetMinimumWidth then GameTooltip:SetMinimumWidth(0) end -- (other tooltips their own width)
+		GameTooltip:Hide()
+	end)
+	frame.limits = info
 
 	-- No round portrait (it made the header tall): the game's own way to take it off, which also
 	-- squares the corner. Where that fails the portrait stays, with the Pugger icon in it.
@@ -1490,7 +1544,11 @@ function UI.WindowMenu(anchor)
 		{ text = L.ASKS_FROM:format(L["ASKS_" .. (s.asks or "all"):upper()]), go = function()
 			s.asks = s.asks == "all" and "friends" or (s.asks == "friends" and "off" or "all")
 		end },
-		{ text = L.DAYS_KEPT:format(s.daysKept), go = function() s.daysKept = s.daysKept >= 7 and 1 or s.daysKept + 1 end },
+		{ text = L.HOURS_KEPT:format(s.hoursKept or 12), go = function()
+			s.hoursKept = (s.hoursKept or 12) >= 12 and 3 or (s.hoursKept == 3 and 6 or 12)
+			ns.Store.Prune()
+			dirty = true
+		end },
 		{ text = L.WORD_FILTER, go = function() ns.Popups.WordFilter() end },
 		{ text = L.MAP_CALLS, go = function() ns.MapPins.ToggleMenu(anchor) end },
 		{ text = L.PRIVACY, go = function() ns.Consent.Show() end },

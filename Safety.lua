@@ -11,6 +11,11 @@ local Codec = ns.Codec
 
 Safety.POSTS_PER_HOUR = 20  -- live posts a sender may make in an hour; more are ignored
 Safety.LEVEL_TO_POST = 10
+-- Posts from one spot: at most SPOT_POSTS within SPOT_YARDS of each other in SPOT_WINDOW (posts
+-- and reposts; replies are conversation and free). Moving on lets the player post again there;
+-- coming back within the window finds the old ones still counted. The player's own add-on says
+-- so before sending, and everyone's drops the extra ones (each post carries its place).
+Safety.SPOT_POSTS, Safety.SPOT_YARDS, Safety.SPOT_WINDOW = 3, 100, 900
 
 function Safety.IsMuted(name) return ns.rdb.mutes[name] ~= nil end
 function Safety.IsBlocked(name) return ns.rdb and ns.rdb.blocks[name] ~= nil end
@@ -75,6 +80,42 @@ function Safety.AdmitPost(sender, now)
 	if #list >= Safety.POSTS_PER_HOUR then return false end
 	list[#list + 1] = now
 	return true
+end
+
+-- Two places from posts (pins): one spot when within SPOT_YARDS; a zone without coordinates (in a
+-- dungeon) is one spot with itself; places that can't be compared are not the same.
+local function SameSpot(a, b)
+	local am, ax, ay = Codec.DecodePin(a or "")
+	local bm, bx, by = Codec.DecodePin(b or "")
+	if not am or not bm then return false end
+	if not ax or not bx then return am == bm and not ax and not bx end
+	local d = ns.Calls.Distance(am, ax, ay, bm, bx, by)
+	return d ~= nil and d < Safety.SPOT_YARDS
+end
+
+local spots = {} -- [author] = { { t, pin } } of other players' live posts; the player's own in ns.rdb.spots
+local function SpotList(author)
+	if author == ns.me then
+		ns.rdb.spots = ns.rdb.spots or {}
+		return ns.rdb.spots
+	end
+	spots[author] = spots[author] or {}
+	return spots[author]
+end
+
+-- May author post from pin now? true, or false and the seconds until one more fits there.
+function Safety.SpotRoom(author, pin, now)
+	local list = SpotList(author)
+	while list[1] and now - list[1].t > Safety.SPOT_WINDOW do table.remove(list, 1) end
+	local here = {}
+	for _, e in ipairs(list) do if SameSpot(e.pin, pin) then here[#here + 1] = e end end
+	if #here < Safety.SPOT_POSTS then return true end
+	return false, here[1].t + Safety.SPOT_WINDOW - now
+end
+
+function Safety.NoteSpot(author, pin, now)
+	local list = SpotList(author)
+	list[#list + 1] = { t = now, pin = pin or "" }
 end
 
 -- The player may post: level 10 or more.

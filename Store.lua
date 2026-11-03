@@ -1,8 +1,8 @@
 local ADDON, ns = ...
 
--- The posts this client holds, in ns.rdb (one realm and faction): the last days of posts
--- (settings.daysKept, 1-7), at most PER_AUTHOR per author and MAX_POSTS in all, the oldest
--- dropped first. A delete leaves a small tombstone for TOMB_DAYS, so sync never brings the post
+-- The posts this client holds, in ns.rdb (one realm and faction): the last hours of posts
+-- (settings.hoursKept, 12 at most: the next login brings newer ones), at most PER_AUTHOR per
+-- author and MAX_POSTS in all, the oldest dropped first; the player's own stay a week. A delete leaves a small tombstone for TOMB_DAYS, so sync never brings the post
 -- back. Posts:
 --   posts[id] = { id, a = author, t = time, f = "p"|"r"|nil, par = parent id, pin, x = text,
 --                 s = signature, v = "direct"|"ok"|nil (checked), lk = { [liker] = true },
@@ -17,8 +17,8 @@ local Codec = ns.Codec
 Store.PER_AUTHOR = 200
 Store.MAX_POSTS = 5000
 Store.TOMB_DAYS = 7
-Store.BUCKET = 21600 -- six hours
-Store.BUCKETS = 12   -- three days of them in a digest
+Store.BUCKET = 3600  -- an hour
+Store.BUCKETS = 12   -- twelve of them in a digest: all a client keeps
 
 local children = {}  -- [parent id] = { [id] = true }: replies and reposts
 local byAuthor = {}  -- [author] = count
@@ -58,7 +58,7 @@ function Store.Total() return total end
 function Store.IsTomb(id) return ns.rdb.tombs[id] ~= nil end
 
 local function Oldest()
-	return ns.Now() - math.max(1, math.min(7, ns.db.settings.daysKept or 3)) * 86400
+	return ns.Now() - math.max(1, math.min(12, ns.db.settings.hoursKept or 12)) * 3600
 end
 Store.Oldest = Oldest
 
@@ -145,7 +145,7 @@ function Store.Replies(p)
 end
 
 ---------------------------------------------------------------------------
--- Digests for sync (Sync.lua): 12 buckets of six hours back from now; each the count of posts
+-- Digests for sync (Sync.lua): 12 buckets of an hour back from now; each the count of posts
 -- in it and a hash of their ids, order free (a sum of hashes).
 ---------------------------------------------------------------------------
 

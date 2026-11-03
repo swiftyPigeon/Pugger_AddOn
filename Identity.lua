@@ -235,5 +235,7 @@ ns.On("CHANNEL_READY", function()
 	ns.After(2 + math.random() * 6, "profile", function() Identity.SendProfile(true) end)
 end)
 ns.On("LOGIN", function()
-	ns.Every(Identity.PROFILE_EVERY, "profile ticker", function() Identity.SendProfile(true) end)
+	ns.Every(60, "profile ticker", function()
+		if ns.Now() - lastProfile >= Identity.PROFILE_EVERY * ns.Comm.Scale() then Identity.SendProfile(true) end
+	end)
 end)

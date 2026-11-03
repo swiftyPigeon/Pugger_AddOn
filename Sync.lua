@@ -1,13 +1,13 @@
 local ADDON, ns = ...
 
 -- Catch-up without a server (section 5 of the plan).
--- 1. At login, and every DIGEST_EVERY after, a client sends ONE digest (H1) on the channel: for
---    each six hours of the last three days, how many posts it holds and a hash of their ids. A
+-- 1. At login, and every DIGEST_EVERY after (slower on a big feed: Comm.Scale), a client sends
+--    ONE digest (H2) on the channel: for each hour of the last twelve, how many posts it holds and a hash of their ids. A
 --    client that heard a digest just like its own in that time stays quiet: most clients that
 --    are in step never send one.
 -- 2. A client that holds more of a bucket than the digest's sender waits a random 2-10 s; the
---    first to answer says so on the channel (O1) and the others stay quiet. It whispers the
---    short ids of its posts in that bucket (I1).
+--    first to answer says so on the channel (O2) and the others stay quiet. It whispers the
+--    short ids of its posts in that bucket (I2).
 -- 3. The sender asks for the ones it lacks and would keep (Q1), newest first, and tells the
 --    answerer of posts it holds a tombstone for (D1). The answerer whispers those posts with
 --    their counts (C1), only ones whose signature it checked.
@@ -42,15 +42,15 @@ end
 function Sync.SendDigest(force)
 	if not ns.Comm.Ready() then return end
 	local now = ns.Now()
-	if not force and now - heardSame < Sync.DIGEST_EVERY then return end
+	if not force and now - heardSame < Sync.DIGEST_EVERY * ns.Comm.Scale() then return end
 	local bucket, body = DigestText()
 	lastDigest = now
 	stats.digests = stats.digests + 1
-	ns.Comm.Send(("H1~%s~%s"):format(Codec.Base36(bucket), body), { key = "H1" })
+	ns.Comm.Send(("H2~%s~%s"):format(Codec.Base36(bucket), body), { key = "H2" })
 end
 
 local function ParseDigest(text)
-	local b36, body = text:match("^H1~([0-9a-z]+)~(.*)$")
+	local b36, body = text:match("^H2~([0-9a-z]+)~(.*)$")
 	local bucket = Codec.UnBase36(b36)
 	if not bucket or not body then return nil end
 	local list = {}
@@ -72,17 +72,17 @@ local function Offer(asker, b)
 	end
 	if #ids == 0 then return end
 	stats.offers = stats.offers + 1
-	ns.Comm.Send(("O1~%s~%s"):format(asker, Codec.Base36(b)))
-	ns.Comm.Send(("I1~%s~%s"):format(Codec.Base36(b), table.concat(ids, ",")), { to = asker })
+	ns.Comm.Send(("O2~%s~%s"):format(asker, Codec.Base36(b)))
+	ns.Comm.Send(("I2~%s~%s"):format(Codec.Base36(b), table.concat(ids, ",")), { to = asker })
 end
 
-ns.Comm.Handle("H1", function(dist, sender, text)
+ns.Comm.Handle("H2", function(dist, sender, text)
 	if dist ~= "CHANNEL" then return end
 	local bucket, theirs = ParseDigest(text)
 	if not bucket then return end
 	stats.heard = stats.heard + 1
 	local myBucket, mine = Store.Digest()
-	if bucket ~= myBucket then return end -- (a clock six hours off: nothing to compare)
+	if bucket ~= myBucket then return end -- (another hour on its clock: nothing to compare)
 	local same = #theirs == #mine
 	for i, e in ipairs(mine) do
 		local t = theirs[i]
@@ -107,8 +107,8 @@ ns.Comm.Handle("H1", function(dist, sender, text)
 end)
 
 -- Someone else answers that player for that bucket: ours stays unsent.
-ns.Comm.Handle("O1", function(dist, sender, text)
-	local asker, b36 = text:match("^O1~(.+)~([0-9a-z]+)$")
+ns.Comm.Handle("O2", function(dist, sender, text)
+	local asker, b36 = text:match("^O2~(.+)~([0-9a-z]+)$")
 	local b = Codec.UnBase36(b36)
 	if not asker or not b then return end
 	local key = asker .. "#" .. b
@@ -117,9 +117,9 @@ ns.Comm.Handle("O1", function(dist, sender, text)
 end)
 
 -- An answer to our digest: the short ids someone holds in a bucket.
-ns.Comm.Handle("I1", function(dist, sender, text)
+ns.Comm.Handle("I2", function(dist, sender, text)
 	if dist ~= "WHISPER" then return end
-	local b36, body = text:match("^I1~([0-9a-z]+)~(.*)$")
+	local b36, body = text:match("^I2~([0-9a-z]+)~(.*)$")
 	local b = Codec.UnBase36(b36)
 	if not b then return end
 	local have, tombs = {}, {}
@@ -173,7 +173,9 @@ end)
 
 ns.On("LOGIN", function()
 	loginAt = ns.Now()
-	ns.Every(Sync.DIGEST_EVERY, "sync digest", function() Sync.SendDigest(false) end)
+	ns.Every(60, "sync digest", function()
+		if ns.Now() - lastDigest >= Sync.DIGEST_EVERY * ns.Comm.Scale() then Sync.SendDigest(false) end
+	end)
 end)
 ns.On("CHANNEL_READY", function()
 	-- At login always: this client is the one behind.

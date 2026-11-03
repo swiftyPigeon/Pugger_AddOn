@@ -36,9 +36,17 @@ Comm.stats = stats
 local heard = {} -- [sender] = when we last heard them (so a whisper only goes to someone online)
 local countingSince = GetTime()
 
--- Every client sends its profile at login and every half hour (Identity.PROFILE_EVERY): the
--- players heard within that, and a minute more, are the ones online with the add-on.
+-- Every client sends its profile at login and every half hour (Identity.PROFILE_EVERY), slower
+-- on a big feed (Comm.Scale): the players heard within that, and a minute more, are the ones
+-- online with the add-on.
 Comm.ONLINE_WINDOW = 1860
+-- On a big feed the regular messages (profiles, digests) slow down in step with the players, so
+-- the channel carries about the same: 1 up to SCALE_FROM players, at most SCALE_MAX (1,000
+-- players: a profile every two hours). Worked out each minute from the last count.
+Comm.SCALE_FROM, Comm.SCALE_MAX = 250, 4
+local scale = 1
+function Comm.Scale() return scale end
+local function Window() return Comm.ONLINE_WINDOW + (scale - 1) * 1800 end
 
 function Comm.HeardWithin(name, seconds)
 	local t = heard[name]
@@ -51,10 +59,11 @@ end
 function Comm.Online()
 	local now, n = GetTime(), 1
 	local profiles = ns.rdb and ns.rdb.profiles or {}
+	local window = Window()
 	for k, t in pairs(heard) do
-		if now - t <= Comm.ONLINE_WINDOW and profiles[k] then n = n + 1 end
+		if now - t <= window and profiles[k] then n = n + 1 end
 	end
-	return n, now - countingSince
+	return n, now - countingSince, window
 end
 
 local function Dist()
@@ -388,7 +397,8 @@ ns.On("LOGIN", function()
 		Codec.Gc(asm.CHANNEL, now)
 		Codec.Gc(asm.WHISPER, now)
 		for k, b in pairs(buckets) do if now - b.t > 300 then buckets[k] = nil end end
-		for k, t in pairs(heard) do if now - t > Comm.ONLINE_WINDOW then heard[k] = nil end end
+		for k, t in pairs(heard) do if now - t > Window() then heard[k] = nil end end
+		scale = math.max(1, math.min(Comm.SCALE_MAX, Comm.Online() / Comm.SCALE_FROM))
 		if not ns.TestNet() and (channelIndex == 0 or (GetChannelName(joinedName or "") or 0) == 0) then Comm.JoinChannel() end
 	end)
 end)

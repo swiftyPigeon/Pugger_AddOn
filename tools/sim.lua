@@ -538,7 +538,7 @@ for i = 1, 3000 do
 	local t = {}
 	for j = 1, len do t[j] = string.char(math.random(0, 255)) end
 	local s = table.concat(t)
-	local kinds = { "P1~", "D1~", "L1~", "R1~", "H1~", "I1~", "Q1~", "C1~", "M1~", "M2~", "J1~", "J2~", "B1~", "O1~", "C1:1:2:" }
+	local kinds = { "P1~", "D1~", "L1~", "R1~", "H2~", "I2~", "Q1~", "C1~", "M1~", "M2~", "J1~", "J2~", "B1~", "O2~", "C1:1:2:" }
 	if i % 2 == 0 then s = kinds[math.random(#kinds)] .. s:gsub("~", "") .. "~" .. s end
 	local dist = i % 3 == 0 and "WHISPER" or "CHANNEL"
 	Call(A, A.ns.Comm.OnAddonMessage, "PUGGER", s:sub(1, 255), dist, "Junk" .. (i % 5) .. "-Forever", "", 0, A.chans.PuggerA1)
@@ -560,6 +560,45 @@ local horde = false
 Call(A, function() if A.ns.Comm.HeardWithin(H.ns.me, 3600) then horde = true end end)
 Check(not horde, "...and never the Horde player")
 
+print("== twelve hours kept, and a busy feed")
+-- Posts older than twelve hours go (the player's own stay); past BUSY_PER_HOUR posts an hour the
+-- faction's tab shows who the player follows, then posts near them, and says how many it left out.
+local function Fake(c, author, ago, map, text)
+	local t = c.ns.Now() - ago
+	local p = { id = c.ns.Codec.PostId(author, t, math.random(1, 1e6)), a = author, t = t, x = text,
+		pin = c.ns.Codec.EncodePin(map, 0.5, 0.5), v = "direct", lk = {} }
+	c.ns.Store.Add(p)
+	return p
+end
+local old = Call(Cc, Fake, Cc, "Oldtimer-Forever", 60, Cc.map, "from yesterday")
+local mineOld = Call(Cc, Fake, Cc, Cc.ns.me, 60, Cc.map, "my own, yesterday")
+old.t, mineOld.t = old.t - 13 * 3600, mineOld.t - 13 * 3600 -- (thirteen hours on)
+Call(Cc, Cc.ns.Store.Prune)
+Check(Cc.ns.Store.Get(old.id) == nil and Cc.ns.Store.Get(mineOld.id) ~= nil, "after twelve hours a post goes; the player's own stay")
+Check(not Call(Cc, Cc.ns.Feed.Busy), "a quiet feed is not busy")
+Call(Cc, function()
+	Cc.ns.Feed.Follow("Friend-Forever", true)
+	for i = 1, 70 do Fake(Cc, "Far" .. i .. "-Forever", i * 30, 9999, "far away " .. i) end
+	for i = 1, 60 do Fake(Cc, "Near" .. i .. "-Forever", i * 30 + 7, Cc.map, "close by " .. i) end
+	Fake(Cc, "Friend-Forever", 3000, 9999, "a friend, far away")
+end)
+Check(Call(Cc, Cc.ns.Feed.Busy), "130 posts in an hour: a busy feed")
+local tl = Call(Cc, Cc.ns.Feed.Timeline, "realm", 40)
+local friend, far, near = false, 0, 0
+for _, p in ipairs(tl) do
+	if p.a == "Friend-Forever" then friend = true
+	elseif p.a:find("^Far") then far = far + 1
+	elseif p.a:find("^Near") then near = near + 1 end
+end
+Check(friend and far == 0 and near > 0, ("busy: the friend's post (far away) and posts nearby, none from far (%d near)"):format(near))
+Check(Cc.ns.Feed.leftOut >= 70, ("...and it says how many it left out (%d)"):format(Cc.ns.Feed.leftOut))
+Cc.ns.Feed.showAll = true
+far = 0
+for _, p in ipairs(Call(Cc, Cc.ns.Feed.Timeline, "realm", 200)) do if p.a:find("^Far") then far = far + 1 end end
+Check(far == 70, "\"show all\": everything again")
+Cc.ns.Feed.showAll = false
+Call(Cc, function() for id, p in pairs(Cc.ns.rdb.posts) do if p.a:find("^Far") or p.a:find("^Near") or p.a == "Friend-Forever" then Cc.ns.Store.Remove(id) end end end)
+
 print("== quiet in group instances")
 -- Bran goes into a dungeon with a group: the window steps aside and no card shows; a rare
 -- called meanwhile catches up as a card on the way out, while it is still up.
@@ -570,7 +609,7 @@ B.env.IsInInstance = function() return true, "party" end
 B.party = { "Dungeonmate" }
 Fire(B, "PLAYER_ENTERING_WORLD")
 Check(not bFeed:IsShown() and Call(B, B.ns.Popups.Count) == 0, "in a group instance: the window steps aside, no cards")
-A.target = { name = "Quiet Rare", class = "rare", guid = "Creature-0-1-2-3-4-999-0000" }
+A.target = { name = "Quiet Rare", class = "rare", guid = "Creature-0-1-2-3-999-0000" }
 Call(A, A.ns.Calls.Rare)
 A.target = nil
 Advance(5)
@@ -629,6 +668,9 @@ end)
 Check(A.ns.db.settings.launcher == "chat" and A.ns.db.settings.setupDone == true and not A.env.Pugger_MinimapButton:IsShown(),
 	"back to \"By the chat\", and Done: the setup won't show again")
 
+-- The title bar's "i": the limits, on hover.
+Check(A.env.Pugger_LimitsButton ~= nil and pcall(A.ns.UI.LimitsTip, A.env.Pugger_LimitsButton), "the title bar's \"i\" shows the limits")
+
 print("== links into the compose box")
 -- A shift-clicked item reaches the box (bag click -> HandleModifiedItemClick ->
 -- ChatFrameUtil.InsertLink: two hooks fire), once, and only while the box has the cursor.
@@ -644,7 +686,7 @@ A.shift = false
 Call(A, function() cbox:SetText("") cbox:ClearFocus() end)
 
 print("== map calls")
-A.target = { name = "Foe Reaper 4000", class = "rareelite", guid = "Creature-0-1-2-3-4-573-0000" }
+A.target = { name = "Foe Reaper 4000", class = "rareelite", guid = "Creature-0-1-2-3-573-0000" }
 Call(A, A.ns.Calls.Rare)
 Advance(5)
 local rareB
@@ -662,6 +704,29 @@ end)
 Advance(5)
 local rareA = A.ns.Calls.Get(rareB.id)
 Check(rareA and rareA.ended == "d", "the rare call closed on two \"Dead\"")
+-- Called dead: the same rare can't be called again in that zone for a while.
+A.target = { name = "Foe Reaper 4000", class = "rareelite", guid = "Creature-0-1-2-3-573-0000" }
+Call(A, A.ns.Calls.Rare)
+A.target = nil
+local again = 0
+for _, c in ipairs(Call(A, A.ns.Calls.List, "all")) do if c.kind == "R" and c.c == "573" and not c.ended then again = again + 1 end end
+Check(again == 0, "a rare just called dead can't be called again yet")
+
+-- One rare, five calls an hour at most (whoever calls it); another rare is its own count.
+local function CallRare(npc, name)
+	A.target = { name = name, class = "rare", guid = "Creature-0-1-2-3-" .. npc .. "-0000" }
+	Call(A, A.ns.Calls.Rare)
+	A.target = nil
+	Advance(2)
+	local made
+	for _, c in ipairs(Call(A, A.ns.Calls.List, "all")) do if c.kind == "R" and c.c == npc and c.mine and not c.ended then made = c end end
+	if made then Call(A, A.ns.Calls.End, made.id, "x") end
+	return made ~= nil
+end
+local five = 0
+for _ = 1, 5 do if CallRare("777", "Fivefold") then five = five + 1 end end
+Check(five == 5 and not CallRare("777", "Fivefold"), "one rare: five calls an hour, the sixth refused")
+Check(CallRare("778", "Another Rare"), "...while a different rare can still be called")
 
 Call(A, A.ns.Calls.Group, "The Defias Brotherhood", 2)
 Advance(5)
@@ -711,6 +776,18 @@ Check(dC and Call(Cc, Cc.ns.Calls.CantAsk, dC) ~= nil, "...but level 12 can't as
 A.x = 0.9
 Call(A, A.ns.Calls.Dungeon, "ubrs", 2)
 Advance(3)
+A.x = 0.5
+-- A dungeon call ends once its caller is 200 yards from where they made it (at the stone).
+Call(A, A.ns.Calls.Dungeon, "dm", 2)
+Advance(6)
+local dmA
+for _, c in pairs(Call(A, A.ns.Calls.List, "groups")) do if c.mine and c.a == "dm" then dmA = c end end
+A.x = 0.65
+Advance(6)
+Check(dmA and not dmA.ended, "150 yards from the stone: the dungeon call stays")
+A.x = 0.75
+Advance(6)
+Check(dmA and dmA.ended == "x", "250 yards from the stone: the dungeon call ends")
 A.x = 0.5
 
 print("== a meeting stone on a client with other zone numbers (MoP)")
@@ -882,6 +959,33 @@ Call(M1, M1.ns.Feed.Post, "over the guild", {}, function() end)
 Advance(10)
 Check(PostBy(M2, M1.full, "over the guild") ~= nil, "a post crossed over GUILD between two test copies")
 Check(M2.ns.rdb.profiles[M1.full] ~= nil, "...with the profile")
+
+print("== posts from one spot")
+-- Three posts from one spot in fifteen minutes; a fourth is refused there, by the poster's add-on
+-- and, should it skip the check, by everyone's. A hundred yards on, posting is open again.
+Advance(1000)
+local why4
+for i = 1, 3 do
+	Call(A, A.ns.Feed.Post, "spot " .. i, {}, function() end)
+	Advance(3)
+end
+Call(A, A.ns.Feed.Post, "spot 4", {}, function(ok, why) why4 = not ok and why end)
+Advance(3)
+Check(why4 and why4:find("from this spot") ~= nil, "a fourth post from the same spot is refused, saying why")
+local function Heard(c, text)
+	for _, p in pairs(c.ns.rdb.posts) do if p.a == A.ns.me and p.x == text then return true end end
+	return false
+end
+Check(Heard(B, "spot 3") and not Heard(B, "spot 4"), "Bran got three of them")
+Call(A, function() A.ns.rdb.spots = {} end) -- (as a changed add-on would: no check of its own)
+Call(A, A.ns.Feed.Post, "spot 5", {}, function() end)
+Advance(3)
+Check(Heard(A, "spot 5") and not Heard(B, "spot 5"), "...and drops a fourth from a changed add-on that sent it anyway")
+A.x = 0.62
+Call(A, A.ns.Feed.Post, "moved on", {}, function() end)
+Advance(3)
+Check(Heard(B, "moved on"), "120 yards on: posting again")
+A.x = 0.5
 
 print("== totals")
 local all = 0

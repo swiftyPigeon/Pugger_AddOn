@@ -60,6 +60,14 @@ function Feed.Post(text, opt, done)
 		Changed()
 		return done(true)
 	end
+	-- From one spot, a few posts at a time (Safety.SpotRoom); replies are free.
+	if not opt.reply then
+		local here = Codec.EncodePin(ns.Calls.MyPlace())
+		local ok, wait = ns.Safety.SpotRoom(ns.me, here, ns.Now())
+		if not ok then
+			return done(false, ns.L.SPOT_FULL:format(ns.Safety.SPOT_POSTS, ns.Safety.SPOT_YARDS, math.max(1, math.ceil(wait / 60))))
+		end
+	end
 	ns.Consent.Ask(function()
 		local rdb = ns.rdb
 		rdb.counter = (rdb.counter or 0) + 1
@@ -76,6 +84,7 @@ function Feed.Post(text, opt, done)
 			if not sig then return done(false, ns.L.KEY_NOT_READY) end
 			p.s, p.v, p.sv = sig, "direct", true
 			Store.Add(p)
+			if p.f ~= "p" then ns.Safety.NoteSpot(ns.me, p.pin, ns.Now()) end
 			-- Logged: the server keeps the text, so abuse can be reported to Blizzard.
 			ns.Comm.Send(Codec.EncodePost(p), { logged = true })
 			Changed()
@@ -215,6 +224,10 @@ function Feed.Take(p, sender, dist)
 		if not ns.Safety.AdmitPost(sender, ns.Now()) then return "flood" end
 		local pr = ns.rdb.profiles[sender]
 		if pr and pr.level and pr.level < ns.Safety.LEVEL_TO_POST then return "level" end
+		if p.f ~= "p" then
+			if not ns.Safety.SpotRoom(sender, p.pin, ns.Now()) then return "spot" end
+			ns.Safety.NoteSpot(sender, p.pin, ns.Now())
+		end
 		-- A live post is new: one stamped far from now is refused.
 		if math.abs(p.t - ns.Now()) > 900 then return "clock" end
 	end
@@ -289,11 +302,45 @@ end)
 
 local function Visible(p) return not ns.Safety.Hidden(p) end
 
+-- A busy feed: more posts in the last hour than anyone reads. Then the faction's tab shows the
+-- people the player follows (always), their own posts and mentions of them, and fills what room
+-- is left with posts written near them (their zone and the ones next to it); the rest is left
+-- out, unless the player asks for all (Feed.showAll, until /reload).
+Feed.BUSY_PER_HOUR = 120
+Feed.showAll = false
+Feed.leftOut = 0
+function Feed.Busy()
+	local since, n = ns.Now() - 3600, 0
+	for _, p in pairs(ns.rdb.posts) do if p.t >= since and p.f ~= "p" then n = n + 1 end end
+	return n >= Feed.BUSY_PER_HOUR, n
+end
+
+-- Written near the player: the post's zone is theirs or one next to it.
+function Feed.Nearby(p)
+	local m = p.pin and Codec.DecodePin(p.pin)
+	return m ~= nil and ns.Calls.Near(m)
+end
+
+local function Focused(max)
+	local f = ns.rdb.follows
+	local function Mine(p) return f[p.a] or p.a == ns.me or Feed.MentionsMe(p) end
+	local first = Store.List(function(p) return p.f ~= "p" and Visible(p) and Mine(p) end, max)
+	local near = Store.List(function(p) return p.f ~= "p" and Visible(p) and not Mine(p) and Feed.Nearby(p) end, max - #first)
+	local all = 0
+	for _, p in pairs(ns.rdb.posts) do if p.f ~= "p" and Visible(p) then all = all + 1 end end
+	Feed.leftOut = math.max(0, all - #first - #near)
+	for _, p in ipairs(near) do first[#first + 1] = p end
+	table.sort(first, function(a, b) return a.t > b.t or (a.t == b.t and a.id > b.id) end)
+	return first
+end
+
 -- Posts for a tab: "realm", "following", "mentions", "me"; or { tag = "onyxia" },
 -- { thread = id }, { author = name }.
 function Feed.Timeline(view, max)
 	max = max or 100
 	if view == "realm" then
+		Feed.leftOut = 0
+		if not Feed.showAll and Feed.Busy() then return Focused(max) end
 		return Store.List(function(p) return p.f ~= "p" and Visible(p) end, max)
 	elseif view == "following" then
 		local f = ns.rdb.follows

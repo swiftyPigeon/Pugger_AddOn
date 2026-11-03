@@ -26,9 +26,12 @@ local Codec = ns.Codec
 
 Calls.GROUP_YARDS = 300
 Calls.LIFE = { R = 900, C = 3600, G = 1800, D = 3600 }
-Calls.LIMIT = { R = 3, C = 4, G = 4, D = 4 } -- calls a player may make of each kind an hour
+Calls.LIMIT = { R = 10, C = 4, G = 4, D = 4 } -- calls a player may make of each kind an hour
 Calls.ASKS_WAITING = 5
-Calls.AWAY_FROM_STONE = 600
+Calls.AWAY_FROM_STONE = 600   -- where the caller's position is unknown (in a dungeon): ended after this
+Calls.STONE_LEAVE_YARDS = 200 -- a dungeon call ends once its caller is this far from where they made it
+Calls.RARE_DEAD_PAUSE = 300   -- a rare voted dead can't be called again in its zone for this long
+Calls.RARE_PER_HOUR = 5       -- calls one rare (in its zone) may have an hour, whoever makes them
 Calls.NOTE_MAX = 80
 -- Phase 0: SAY or YELL instead of the channel for group calls, if Forever carries add-on
 -- messages there (the server's own range then). nil: the channel and the distance check.
@@ -76,6 +79,19 @@ local CLASS_NAME = { e = "elite", r = "rare", R = "rare elite", w = "world boss"
 Calls.CLASS_NAME = CLASS_NAME
 
 local active = {}  -- [callId] = call
+local deadRares = {} -- [npc id .. ":" .. map] = when a call for it was voted dead
+local rareCalls = {} -- [npc id .. ":" .. map] = { times } of its calls this hour
+
+-- Has this rare had its RARE_PER_HOUR calls? With note, counts one more.
+local function RareFull(key, now, note)
+	local times = rareCalls[key] or {}
+	rareCalls[key] = times
+	while times[1] and now - times[1] > 3600 do table.remove(times, 1) end
+	if #times >= Calls.RARE_PER_HOUR then return true end
+	if note then times[#times + 1] = now end
+	return false
+end
+local heardCalls = {} -- [caller .. kind] = { times }: the hourly limit, checked by everyone
 local mine = {}    -- [kind] = my active call's id
 local made = {}    -- [kind] = { times } this hour
 local cid = 0
@@ -281,6 +297,10 @@ function Calls.Rare()
 	if not name then return ns.Print(ns.L.RARE_NEED_TARGET) end
 	local map, x, y = Calls.MyPosition()
 	if not map then return ns.Print(ns.L.NO_POSITION) end
+	local key = npc .. ":" .. map
+	local dead = deadRares[key]
+	if dead and ns.Now() - dead < Calls.RARE_DEAD_PAUSE then return ns.Print(ns.L.RARE_JUST_DEAD:format(name)) end
+	if RareFull(key, ns.Now()) then return ns.Print(ns.L.RARE_TOO_OFTEN:format(name, Calls.RARE_PER_HOUR)) end
 	-- One call per rare at a time: a second one is a "still up" for the first.
 	for id, c in pairs(active) do
 		if c.kind == "R" and c.c == npc and c.map == map and Calls.Shown(c) then
@@ -290,6 +310,7 @@ function Calls.Rare()
 	end
 	local c, why = Make("R", map, x, y, { a = name, b = class, c = npc })
 	if not c then return ns.Print(why) end
+	RareFull(key, ns.Now(), true)
 	c.votes[ns.me] = "u"
 end
 
@@ -370,6 +391,7 @@ function Calls.Settle(c)
 	if c.ended or c.kind ~= "R" then return end
 	if dead > up and (dead >= 2 or c.votes[c.caller] == "d") then
 		c.ended = "d"
+		deadRares[(c.c or "") .. ":" .. tostring(c.map)] = ns.Now()
 		-- A caller whose calls keep dying soon after they were made: hidden for a while.
 		if not c.mine and ns.Now() - c.t < 120 then
 			local s = ns.rdb.slow
@@ -436,6 +458,25 @@ ns.Comm.Handle("M1", function(dist, sender, text)
 			Calls.Read(old)
 		end
 		return Changed()
+	end
+	-- The hourly limit of each kind (Calls.LIMIT), kept by everyone, not only the caller's add-on.
+	local hk = sender .. c.kind
+	local times = heardCalls[hk] or {}
+	heardCalls[hk] = times
+	while times[1] and now - times[1] > 3600 do table.remove(times, 1) end
+	if #times >= Calls.LIMIT[c.kind] then return end
+	times[#times + 1] = now
+	-- A rare voted dead a moment ago is not called again yet, and one rare has RARE_PER_HOUR calls
+	-- an hour at most, whoever makes them. (A second call while one is up is a vote, below.)
+	if c.kind == "R" then
+		local key = (c.c or "") .. ":" .. tostring(c.map)
+		local dead = deadRares[key]
+		if dead and now - dead < Calls.RARE_DEAD_PAUSE then return end
+		local up = false
+		for _, o in pairs(active) do
+			if o.kind == "R" and o.c == c.c and o.map == c.map and not o.ended and o.expires > now then up = true end
+		end
+		if not up and RareFull(key, now, true) then return end
 	end
 	-- Quest / farm groups never reach anyone farther than GROUP_YARDS.
 	if c.kind == "G" and not InMyParty(sender) then
@@ -761,8 +802,13 @@ local function Tick()
 			if size >= 5 or (size > 0 and size - math.max(1, c.party0 or 1) >= (c.total or c.need or 1)) then
 				Calls.End(id, "f")
 			end
+			-- A dungeon call ends once its caller is STONE_LEAVE_YARDS from where they made it
+			-- (at the stone); with no position to measure (in the dungeon), after AWAY_FROM_STONE.
 			if c.kind == "D" and c.stone and not c.ended then
-				if Calls.AtStone(c.stone) then c.awayAt = nil
+				local d = Calls.DistanceToMe(c.map, c.x, c.y)
+				if d then
+					c.awayAt = nil
+					if d > Calls.STONE_LEAVE_YARDS then Calls.End(id, "x") end
 				elseif not c.awayAt then c.awayAt = now
 				elseif now - c.awayAt > Calls.AWAY_FROM_STONE then Calls.End(id, "x") end
 			end

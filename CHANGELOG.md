@@ -11,6 +11,20 @@
 - Cards stack up from just above the chat (or beside the minimap, or at the top of the screen).
 - A short setup at the first launch: where the button and the cards go, each choice shown at
   once. Again any time from the menu (Buttons and cards...) or `/pug setup`.
+- Twelve hours of posts kept (3, 6 or 12 in the menu), not three days: the next login brings
+  newer ones. Catch-up works in hours to match (its messages renamed: 0.1.0's are ignored).
+- A busy feed focuses: past 120 posts an hour, the faction's tab shows the people you follow,
+  then posts written near you; a line says how many were left out, and shows them all on a click.
+- On a big feed (past 250 players) profiles and catch-up slow down in step, so the channel
+  carries about the same however many join.
+- No spamming from one spot: at most 3 posts (and reposts) within 100 yards in 15 minutes;
+  moving on opens posting again. Replies are free. Everyone's add-on drops the extra ones.
+- A dungeon group ends once its caller is 200 yards from the stone.
+- A new logo: a "p" whose stem wraps round it in a ring, as the @'s tail does (the other way).
+- A yellow "i" in the title bar lists every limit (posts, spots, rares, groups) on hover.
+- Rare calls: one just voted dead can't be called again in its zone for 5 minutes, and one rare
+  can be called 5 times an hour at most, whoever calls it (a different rare is its own count).
+  The hourly limits of calls are kept by everyone's add-on, not only the caller's.
 - Fixed: shift-clicking an item from the bags didn't put its link in a post on newer clients
   (MoP Classic): every way the game passes a link is now heard.
 
@@ -18,7 +32,7 @@
 - First build: posts (80 characters), follows, likes, reposts, replies, mentions, tags, profiles,
   signed posts and catch-up sync, map calls (rare, camp, quest / farm group, dungeon group at
   meeting stones), mute, block, word filter, backup channels, Phase 0 measurement tools.
-- Named Pugger (was Faxion), with its own logo: a white @ on blue; mentions get a speech bubble, groups a meeting stone.
+- Named Pugger (was Faxion), with its own logo; mentions get a speech bubble, groups a meeting stone.
 - Every post shows the zone and coordinates where it was written (the zone alone in a dungeon);
   a post without one says so.
 - Group calls ask for roles (tank, healer, damage) with the group finder's icons; asks name the

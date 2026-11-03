@@ -11,9 +11,10 @@ local ADDON, ns = ...
 --   L1~postId~1|0                                   a like (the sender likes; never relayed)
 --   R1~pk~level~class~guild~showFollows~t36~sig~bio a profile (only ever heard from its owner)
 --   R0~                                             "send me your profile" (whisper)
---   H1~bucket~c.h,c.h,...                           "what I have": 12 buckets of 6 hours back
---   O1~asker~bucket                                 "I answer this one" (the others stay quiet)
---   I1~bucket~s,s,...                               the short ids of my posts in a bucket (whisper)
+--   H2~bucket~c.h,c.h,...                           "what I have": 12 buckets of an hour back
+--   O2~asker~bucket                                 "I answer this one" (the others stay quiet)
+--   I2~bucket~s,s,...                               the short ids of my posts in a bucket (whisper)
+--   (H1, O1, I1 were 0.1.0's, with six-hour buckets: renamed so the two never misread each other)
 --   Q1~s,s,...                                      "send me these" (whisper)
 --   C1~id=l.r,...                                   like and repost counts (whisper)
 --   M1~kind~cid~map~x~y~expires36~a~b~c~class~note  a map call (Calls.lua)
