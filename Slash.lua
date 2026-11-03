@@ -28,6 +28,7 @@ local COMMANDS = {
 	end,
 	map = function() ns.MapPins.ToggleMenu() end,
 	privacy = function() ns.Consent.Show() end,
+	setup = function() ns.Popups.Setup() end,
 	status = function() for line in ns.Diagnostics.Status():gmatch("[^\n]+") do ns.Print(line) end end,
 	bug = function() ns.Diagnostics.Bug() end,
 	measure = function(rest) ns.Measure.Slash(rest) end,

@@ -1198,9 +1198,10 @@ function UI.Build()
 	frame:SetScript("OnUpdate", function()
 		if dirty and GetTime() - lastDraw >= UI.REDRAW then UI.Render() end
 	end)
-	frame:SetScript("OnShow", function() dirty = true quietHidden = nil ns.cdb.window.shown = true end)
+	frame:SetScript("OnShow", function() dirty = true quietHidden = nil ns.cdb.window.shown = true UI.UpdateChatButton() end)
 	frame:SetScript("OnHide", function()
 		if not combatHidden and not quietHidden then ns.cdb.window.shown = false end
+		UI.UpdateChatButton()
 	end)
 	if w.collapsed then UI.ApplyCollapse(true) end
 	frame:Hide()
@@ -1474,6 +1475,7 @@ function UI.WindowMenu(anchor)
 		{ text = L.MENU_WINDOW, title = true },
 		{ text = L.LOCK, check = w.locked == true, go = Flip(w, "locked") },
 		{ text = L.HIDE_IN_COMBAT, check = s.hideInCombat, go = function() s.hideInCombat = not s.hideInCombat end },
+		{ text = L.SETUP, go = function() ns.Popups.Setup() end },
 		{ text = L.QUIET_IN_GROUPS, check = s.quietInGroups, go = function() s.quietInGroups = not s.quietInGroups UI.CheckQuiet() end },
 		{ text = L.TRANSPARENCY, go = function()
 			s.alpha = (s.alpha or 1) <= 0.55 and 1 or (s.alpha - 0.15)
@@ -1508,7 +1510,7 @@ end
 ---------------------------------------------------------------------------
 
 local function MinimapButton()
-	if ns.db.settings.hideMinimap or not Minimap then return end
+	if not Minimap then return nil end
 	local b = CreateFrame("Button", "Pugger_MinimapButton", Minimap)
 	b:SetSize(31, 31)
 	b:SetFrameStrata("MEDIUM")
@@ -1551,6 +1553,77 @@ local function MinimapButton()
 		GameTooltip:Show()
 	end)
 	b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	return b
+end
+
+-- A button by the chat, while the window is closed: the logo in a rounded square, just above the
+-- game's social button (whichever this client has), with the unread mentions on its corner as
+-- the social button has its count. Only placed against the game's button, never hooking it.
+local chatButton
+local function ChatButton()
+	local b = CreateFrame("Button", "Pugger_ChatButton", UIParent)
+	b:SetSize(32, 32)
+	b:SetFrameStrata("MEDIUM")
+	b.icon = b:CreateTexture(nil, "ARTWORK")
+	b.icon:SetAllPoints()
+	b.icon:SetTexture(ns.ICON_SQUIRCLE)
+	b.shine = b:CreateTexture(nil, "HIGHLIGHT")
+	b.shine:SetAllPoints()
+	b.shine:SetTexture(ns.ICON_SQUIRCLE)
+	b.shine:SetBlendMode("ADD")
+	b.shine:SetAlpha(0.35)
+	b.count = Font(b, "big")
+	b.count:SetPoint("BOTTOMRIGHT", 3, -1)
+	b.count:SetShadowOffset(1, -1)
+	local social
+	for _, name in ipairs({ "QuickJoinToastButton", "FriendsMicroButton", "ChatFrameChannelButton", "ChatFrameMenuButton" }) do
+		local f = _G[name]
+		if type(f) == "table" and f.GetObjectType then social = f break end
+	end
+	if social then b:SetPoint("BOTTOM", social, "TOP", 0, 4)
+	else b:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 4, 200) end
+	b:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+	b:SetScript("OnMouseDown", function(self) self.icon:SetPoint("TOPLEFT", 1, -1) self.icon:SetPoint("BOTTOMRIGHT", 1, -1) end)
+	b:SetScript("OnMouseUp", function(self) self.icon:SetAllPoints() end)
+	b:SetScript("OnClick", function(self, button)
+		if button == "RightButton" then UI.WindowMenu(self) else UI.Toggle(true) end
+	end)
+	b:SetScript("OnEnter", function(self)
+		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		GameTooltip:AddLine("Pugger")
+		GameTooltip:AddLine(L.CHAT_BUTTON_TIP, 1, 1, 1, true)
+		GameTooltip:Show()
+	end)
+	b:SetScript("OnLeave", function() GameTooltip:Hide() end)
+	b:Hide()
+	return b
+end
+
+-- Shown while the window is closed (where the player keeps it by the chat); its count kept current.
+function UI.UpdateChatButton()
+	if not frame then return end
+	if (ns.db.settings.launcher or "chat") == "minimap" then
+		if chatButton then chatButton:Hide() end
+		return
+	end
+	chatButton = chatButton or ChatButton()
+	local n = ns.rdb and ns.rdb.unreadMentions or 0
+	chatButton.count:SetText(n > 0 and tostring(n) or "")
+	if frame:IsShown() then chatButton:Hide() else chatButton:Show() end
+end
+
+-- Pugger's button where the player wants it (ns.db.settings.launcher): by the chat, on the
+-- minimap, or both. The minimap one is made the first time it is wanted.
+local minimapButton
+function UI.ApplyLauncher()
+	if not frame then return end
+	if (ns.db.settings.launcher or "chat") ~= "chat" then
+		minimapButton = minimapButton or MinimapButton()
+		if minimapButton then minimapButton:Show() end
+	elseif minimapButton then
+		minimapButton:Hide()
+	end
+	UI.UpdateChatButton()
 end
 
 -- The key binding (Bindings.xml).
@@ -1560,8 +1633,11 @@ BINDING_NAME_PUGGER_TOGGLE = "Toggle the Pugger feed"
 
 ns.On("LOGIN", function()
 	UI.Build()
-	MinimapButton()
 	if ns.cdb.window.shown ~= false then frame:Show() end
+	UI.ApplyLauncher()
+	-- The first launch: where the button and the cards go (Popups.Setup), once.
+	if not ns.db.settings.setupDone then ns.After(4, "setup", function() ns.Popups.Setup() end) end
+	ns.On("FEED_CHANGED", UI.UpdateChatButton)
 	ns.On("FEED_CHANGED", UI.Dirty)
 	ns.On("CALLS_CHANGED", UI.Dirty)
 	C_Timer.NewTicker(30, function() dirty = true end) -- times ("4m") and distances

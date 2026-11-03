@@ -13,6 +13,7 @@ ns.ICON = "Interface\\AddOns\\Pugger\\media\\logo64"  -- the logo: a white @ on 
 ns.ICON_SMALL = "Interface\\AddOns\\Pugger\\media\\logo32" -- ...drawn for 18-20 px: the header, the minimap and map buttons
 ns.ICON_MENTION = "Interface\\AddOns\\Pugger\\media\\bubble64" -- the Mentions tab and its cards: a speech bubble
 ns.ICON_GROUPS = "Interface\\AddOns\\Pugger\\media\\stone64" -- the Groups tab and dungeon groups: a meeting stone
+ns.ICON_SQUIRCLE = "Interface\\AddOns\\Pugger\\media\\squircle64" -- the button by the chat: the logo in a rounded square
 ns.COLOR = "ffe2b65c"                -- the gold of the window's trim
 -- Test copies only (tools/install-test-mop.sh sets it; nil in a release): /pug testnet then
 -- sends the feed over the guild or the party instead of the channel (Comm.lua).
@@ -31,7 +32,11 @@ local DEFAULTS = {
 	groupsInRealm = true,   -- dungeon calls as a small line in the Realm timeline
 	asks = "all",           -- who may ask to join this player's calls: all | friends | off
 	minimapAngle = 200,
-	hideMinimap = false,
+	launcher = "chat",      -- Pugger's button: "chat" (above the game's social button, while the window
+	                        -- is closed), "minimap", or "both"
+	cardsAt = "chat",       -- where cards show: "chat" (stacked up from above the chat), "minimap"
+	                        -- (beside it) or "top" (the top of the screen)
+	setupDone = false,      -- the first-launch setup (where the button and cards go) was seen
 	alpha = 1,              -- the window's transparency
 	hideInCombat = false,
 	quietInGroups = true,   -- in a dungeon, raid, battleground or arena with others: no window, no cards

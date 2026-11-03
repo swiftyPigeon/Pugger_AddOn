@@ -22,6 +22,9 @@ Version **0.1.1** (2026-11-03).
 - **Quiet in group instances:** in a dungeon, raid, battleground or arena with others, the window
   steps aside and no cards pop up; on the way out, calls still live (rares, groups, asks to join
   yours) catch up as cards. A switch in the window's menu.
+- **Where it sits:** Pugger's button by the chat (just above the game's social button, with your
+  unread mentions) or on the minimap, and its cards above the chat, by the minimap or at the top
+  of the screen: a short setup at the first launch, `/pug setup` after.
 - **Safety:** mute, block, word filter, flood limits, signed posts (a relayed post shows only once
   its author's signature checks), backup channels when one is locked.
 
@@ -37,6 +40,7 @@ mute. Deleting removes a post from the feed, not from anyone who already saved i
 | `/pug reset`, `/pug lock` | back under the minimap; lock in place |
 | `/pug rare`, `/pug camp [note]`, `/pug group [n] [quest]` | map calls |
 | `/pug map` | which calls show on the map |
+| `/pug setup` | where Pugger's button (by the chat, on the minimap, or both) and its cards go |
 | `/pug bio`, `/pug filter`, `/pug mute|block|follow <name>` | your profile, the word filter, people |
 | `/pug privacy`, `/pug status`, `/pug bug` | the limits; what the add-on sees; a bug report to copy |
 | `/pug demo [off]` | sample posts and calls, only on your screen |

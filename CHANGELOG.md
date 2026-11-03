@@ -5,6 +5,12 @@
   the last half hour, you included. Its tooltip tells more, and how many are known in the feed.
 - The group dialog, tidied: the dungeon's name as its title, the game's checkboxes on the role
   buttons, each role named under its icon, the row centred.
+- Pugger's button sits by the chat: the logo in a rounded square just above the game's social
+  button, while the window is closed, with the unread mentions on its corner. The minimap button
+  is now a choice, off by default.
+- Cards stack up from just above the chat (or beside the minimap, or at the top of the screen).
+- A short setup at the first launch: where the button and the cards go, each choice shown at
+  once. Again any time from the menu (Buttons and cards...) or `/pug setup`.
 - Fixed: shift-clicking an item from the bags didn't put its link in a post on newer clients
   (MoP Classic): every way the game passes a link is now heard.
 

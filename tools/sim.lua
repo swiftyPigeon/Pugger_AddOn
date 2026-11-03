@@ -600,6 +600,35 @@ Call(A, function()
 end)
 Check(hidden == 0, ("redraws never hide the compose box (%d hides)"):format(hidden))
 
+print("== the button by the chat, and the setup")
+-- Closed, the window leaves a button by the chat (the logo in a rounded square); open, it goes.
+local feedA = A.env.Pugger_FeedBasic or A.env.Pugger_Feed
+Call(A, function() A.ns.UI.Toggle(false) end)
+local chatB = A.env.Pugger_ChatButton
+Check(chatB ~= nil and chatB:IsShown(), "the window closed: the button by the chat shows")
+Call(A, function() A.ns.UI.Toggle(true) end)
+Check(feedA:IsShown() and not chatB:IsShown(), "the window open: the button goes")
+
+-- The first launch asked where things go; by default no minimap button. Picking "On the
+-- minimap" in the setup moves the button there (the window closed: nothing by the chat).
+local setupA = A.env.Pugger_Setup
+Check(setupA ~= nil and A.ns.db.settings.setupDone == false, "the first launch shows the setup")
+Check(A.env.Pugger_MinimapButton == nil, "by default, no minimap button")
+Call(A, function()
+	local rows = setupA.rows
+	rows[1].buttons[2]:GetScript("OnClick")(rows[1].buttons[2])
+	A.ns.UI.Toggle(false)
+end)
+Check(A.env.Pugger_MinimapButton and A.env.Pugger_MinimapButton:IsShown() and not chatB:IsShown(),
+	"setup, \"On the minimap\": the minimap button, none by the chat")
+Call(A, function()
+	setupA.rows[1].buttons[1]:GetScript("OnClick")(setupA.rows[1].buttons[1])
+	setupA.done:GetScript("OnClick")(setupA.done)
+	A.ns.UI.Toggle(true)
+end)
+Check(A.ns.db.settings.launcher == "chat" and A.ns.db.settings.setupDone == true and not A.env.Pugger_MinimapButton:IsShown(),
+	"back to \"By the chat\", and Done: the setup won't show again")
+
 print("== links into the compose box")
 -- A shift-clicked item reaches the box (bag click -> HandleModifiedItemClick ->
 -- ChatFrameUtil.InsertLink: two hooks fire), once, and only while the box has the cursor.

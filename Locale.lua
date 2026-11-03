@@ -217,6 +217,20 @@ L.LOCKED = "Window locked in place."
 L.UNLOCKED = "Window unlocked: drag its title bar to move it."
 L.HIDE_IN_COMBAT = "Hide in combat"
 L.QUIET_IN_GROUPS = "Quiet in group instances"
+L.SETUP = "Buttons and cards..."
+L.SETUP_TITLE = "Welcome to Pugger"
+L.SETUP_BODY = "Where should Pugger sit on your screen? Change it any time: Menu, then Buttons and cards (or /pug setup)."
+L.SETUP_BUTTON = "Pugger's button"
+L.WHERE_CHAT = "By the chat"
+L.WHERE_MINIMAP = "On the minimap"
+L.WHERE_BOTH = "Both"
+L.SETUP_CARDS = "Cards: rares, groups, mentions"
+L.CARDS_CHAT = "Above the chat"
+L.CARDS_MINIMAP = "By the minimap"
+L.CARDS_TOP = "Top of the screen"
+L.SETUP_SAMPLE = "Cards show here"
+L.SETUP_SAMPLE_BODY = "A rare called nearby, a group looking for you, a mention of your name."
+L.DONE = "Done"
 L.TRANSPARENCY = "Transparency (click to change)"
 L.RESET_POSITION = "Back under the minimap"
 L.SHOW_FOLLOWS = "Show who I follow"
@@ -231,6 +245,7 @@ L.DAYS_KEPT = "Days of posts kept: %d"
 L.MAP_CALLS = "Map calls..."
 L.PRIVACY = "Privacy and limits"
 L.MINIMAP_TIP = "Click: show or hide the feed.\nRight-click: settings. Drag: move this button."
+L.CHAT_BUTTON_TIP = "Click: open the feed.\nRight-click: settings. Where it sits: /pug setup."
 L.MAP_TITLE = "Pugger on the map"
 L.MAP_RARES = "Rare calls"
 L.MAP_CAMPS = "Camps"
@@ -267,5 +282,5 @@ L.HELP = [[Commands (/pug or /pugger):
 /pug - show or hide the feed · /pug reset - back under the minimap · /pug lock
 /pug rare - call the rare you target · /pug camp [note] · /pug group [n] [quest]
 /pug map - map switches · /pug bio · /pug filter · /pug mute|block|follow <name>
-/pug privacy · /pug status · /pug bug · /pug demo [off]
+/pug setup - where the button and cards go · /pug privacy · /pug status · /pug bug · /pug demo [off]
 /pug stone here <dungeon> | export · /pug measure (Phase 0 tests)]]

@@ -23,12 +23,27 @@ local held = {}    -- [call id] = true
 
 local function UIx() return ns.UI end
 
+-- Where the cards stack (ns.db.settings.cardsAt): "chat", upward from just above the chat
+-- window (clear of its tabs), on the side of Pugger's button; "minimap", down beside the minimap;
+-- "top", down from the top of the screen. The newest is nearest its start.
 local function Layout()
-	local anchor = MinimapCluster or Minimap or UIParent
+	local at = ns.db and ns.db.settings.cardsAt or "chat"
+	local chat = _G.ChatFrame1 or DEFAULT_CHAT_FRAME
+	if type(chat) ~= "table" or not chat.GetObjectType then chat = nil end
+	local corner = MinimapCluster or Minimap or UIParent
 	for i, c in ipairs(cards) do
 		c:ClearAllPoints()
-		if i == 1 then c:SetPoint("TOPRIGHT", anchor, "TOPLEFT", -8, -8)
-		else c:SetPoint("TOPRIGHT", cards[i - 1], "BOTTOMRIGHT", 0, -6) end
+		if at == "chat" then
+			if i > 1 then c:SetPoint("BOTTOMLEFT", cards[i - 1], "TOPLEFT", 0, 6)
+			elseif chat then c:SetPoint("BOTTOMLEFT", chat, "TOPLEFT", -4, 34)
+			else c:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 40, 260) end
+		elseif at == "top" then
+			if i > 1 then c:SetPoint("TOP", cards[i - 1], "BOTTOM", 0, -6)
+			else c:SetPoint("TOP", UIParent, "TOP", 0, -110) end
+		else
+			if i > 1 then c:SetPoint("TOPRIGHT", cards[i - 1], "BOTTOMRIGHT", 0, -6)
+			else c:SetPoint("TOPRIGHT", corner, "TOPLEFT", -8, -8) end
+		end
 	end
 end
 
@@ -365,6 +380,83 @@ local function Dialog()
 	if UISpecialFrames then table.insert(UISpecialFrames, "Pugger_Dialog") end
 	dialog = d
 	return d
+end
+
+---------------------------------------------------------------------------
+-- Setup: where Pugger's button and its cards go. Shown once at the first launch, and from the
+-- menu or /pug setup. Each choice applies at once (a sample card shows where cards will be).
+---------------------------------------------------------------------------
+
+local SETUP = {
+	{ key = "launcher", label = "SETUP_BUTTON", opts = { { "chat", "WHERE_CHAT" }, { "minimap", "WHERE_MINIMAP" }, { "both", "WHERE_BOTH" } } },
+	{ key = "cardsAt", label = "SETUP_CARDS", opts = { { "chat", "CARDS_CHAT" }, { "minimap", "CARDS_MINIMAP" }, { "top", "CARDS_TOP" } } },
+}
+local setup
+
+function Popups.Setup()
+	local UI = UIx()
+	local s = ns.db.settings
+	if not setup then
+		local d = CreateFrame("Frame", "Pugger_Setup", UIParent, BackdropTemplateMixin and "BackdropTemplate" or nil)
+		UI.Backdrop(d, { 1, 1, 1, 1 }, { 1, 1, 1, 1 }, "dialog")
+		d:SetSize(370, 252)
+		d:SetPoint("CENTER", 0, 120)
+		d:SetFrameStrata("DIALOG")
+		d:EnableMouse(true)
+		d:SetMovable(true)
+		d:RegisterForDrag("LeftButton")
+		d:SetScript("OnDragStart", d.StartMoving)
+		d:SetScript("OnDragStop", d.StopMovingOrSizing)
+		d.title = UI.Font(d, "title")
+		d.title:SetPoint("TOP", 0, -18)
+		d.title:SetText(L.SETUP_TITLE)
+		d.body = UI.Font(d, nil)
+		d.body:SetPoint("TOP", d.title, "BOTTOM", 0, -6)
+		d.body:SetWidth(320)
+		d.body:SetJustifyH("CENTER")
+		ns.UI.Wrap(d.body)
+		d.body:SetText(L.SETUP_BODY)
+		d.rows = {}
+		for r, row in ipairs(SETUP) do
+			local label = UI.Font(d, nil, { 0.62, 0.58, 0.50 })
+			label:SetPoint("TOP", d, "TOP", 0, -92 - (r - 1) * 52)
+			label:SetText(L[row.label])
+			local buttons = {}
+			for i, o in ipairs(row.opts) do
+				buttons[i] = UI.Button(d, L[o[2]], function()
+					s[row.key] = o[1]
+					Popups.Setup()
+					if row.key == "launcher" then ns.UI.ApplyLauncher()
+					else
+						Layout()
+						Popups.Card({ key = "setup", title = L.SETUP_SAMPLE, body = L.SETUP_SAMPLE_BODY, life = 8, sound = false })
+					end
+				end, "line")
+			end
+			d.rows[r] = { def = row, label = label, buttons = buttons }
+		end
+		d.done = UI.Button(d, L.DONE, function() d:Hide() end, "main")
+		d.done:SetPoint("BOTTOM", 0, 16)
+		d:SetScript("OnHide", function() s.setupDone = true Popups.CloseKey("setup") end)
+		if UISpecialFrames then table.insert(UISpecialFrames, "Pugger_Setup") end
+		setup = d
+	end
+	-- The choices, each row centred under its label, the one in use lit.
+	for _, row in ipairs(setup.rows) do
+		local total = 0
+		for i, b in ipairs(row.buttons) do
+			b.kind = (s[row.def.key] == row.def.opts[i][1]) and "main" or "line"
+			b:SetOn(true)
+			total = total + (b:GetWidth() or 80) + (i > 1 and 6 or 0)
+		end
+		local x = -total / 2
+		for _, b in ipairs(row.buttons) do
+			b:ClearAllPoints()
+			b:SetPoint("TOPLEFT", row.label, "BOTTOM", x, -6)
+			x = x + (b:GetWidth() or 80) + 6
+		end
+	end
+	setup:Show()
 end
 
 -- spec: { title, body, edits = { { label, text, max } }, roles = { max, pick = "THDD" },
