@@ -5,6 +5,8 @@
   the last half hour, you included. Its tooltip tells more, and how many are known in the feed.
 - The group dialog, tidied: the dungeon's name as its title, the game's checkboxes on the role
   buttons, each role named under its icon, the row centred.
+- Fixed: shift-clicking an item from the bags didn't put its link in a post on newer clients
+  (MoP Classic): every way the game passes a link is now heard.
 
 ## 0.1.0 (2026-11-03): the first release
 - First build: posts (80 characters), follows, likes, reposts, replies, mentions, tags, profiles,

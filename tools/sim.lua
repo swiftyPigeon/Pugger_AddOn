@@ -300,7 +300,19 @@ local function NewClient(o)
 	env.UISpecialFrames = {}
 	env.NUM_CHAT_WINDOWS = 0
 	env.RAID_CLASS_COLORS = { MAGE = { colorStr = "ff3fc7eb" } }
-	env.IsShiftKeyDown = function() return false end
+	env.IsShiftKeyDown = function() return c.shift == true end
+	-- The game's link functions as newer clients have them: the old name wraps the new one.
+	env.hooksecurefunc = function(a, b, fn)
+		local t, name = env, a
+		if type(a) == "table" then t, name = a, b else fn = b end
+		local old = t[name]
+		t[name] = function(...) local r = { old(...) } fn(...) return unpack(r) end
+	end
+	env.ChatFrameUtil = { InsertLink = function() return false end }
+	env.ChatEdit_InsertLink = function(link) return env.ChatFrameUtil.InsertLink(link) end
+	-- (Item buttons call the new one directly, not the old name: a hook on the old name alone
+	-- never hears a bag click, the MoP Classic bug of 2026-11-03.)
+	env.HandleModifiedItemClick = function(link) return env.ChatFrameUtil.InsertLink(link) end
 	env.IsMouseButtonDown = function() return false end
 	env.SendChatMessage = function() end
 	env.PlaySound = function() end
@@ -587,6 +599,20 @@ Call(A, function()
 	A.ns.UI.Render() -- (as a new post would; the bench runs no OnUpdate, so drawn by hand)
 end)
 Check(hidden == 0, ("redraws never hide the compose box (%d hides)"):format(hidden))
+
+print("== links into the compose box")
+-- A shift-clicked item reaches the box (bag click -> HandleModifiedItemClick ->
+-- ChatFrameUtil.InsertLink: two hooks fire), once, and only while the box has the cursor.
+local cbox = A.env.Pugger_ComposeBox
+local item = "|cff1eff00|Hitem:2105::::::::14:::::::|h[Grizzly Pants of Power]|h|r"
+A.shift = true
+Call(A, function() cbox:SetText("Who needs these ") cbox:SetFocus() A.env.HandleModifiedItemClick(item) end)
+Check(cbox:GetText() == "Who needs these " .. item, "a shift-clicked item goes into the box, once")
+Advance(1)
+Call(A, function() cbox:SetText("") cbox:ClearFocus() A.env.HandleModifiedItemClick(item) end)
+Check(cbox:GetText() == "", "...and never while the box doesn't have the cursor")
+A.shift = false
+Call(A, function() cbox:SetText("") cbox:ClearFocus() end)
 
 print("== map calls")
 A.target = { name = "Foe Reaper 4000", class = "rareelite", guid = "Creature-0-1-2-3-4-573-0000" }

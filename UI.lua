@@ -1565,9 +1565,30 @@ ns.On("LOGIN", function()
 	ns.On("FEED_CHANGED", UI.Dirty)
 	ns.On("CALLS_CHANGED", UI.Dirty)
 	C_Timer.NewTicker(30, function() dirty = true end) -- times ("4m") and distances
-	if hooksecurefunc and ChatEdit_InsertLink then
-		-- After the game's own: only a box the player focused, the game's chat untouched.
-		hooksecurefunc("ChatEdit_InsertLink", function(link) ns.SafeCall("insert link", UI.InsertLink, link) end)
+	-- Shift-clicked links reach the compose box by hooks that run after the game's own code (never
+	-- calling or replacing it: the game's chat stays untainted), only into a box the player
+	-- focused. Newer clients (MoP Classic) send links through ChatFrameUtil.InsertLink, the old
+	-- global name only wrapping it; older ones through ChatEdit_InsertLink; item buttons pass
+	-- HandleModifiedItemClick. Each that exists is hooked; a click reaching two is inserted once.
+	local lastLink, lastAt = nil, 0
+	local function Hooked(link)
+		if type(link) ~= "string" then return end
+		local now = GetTime()
+		if link == lastLink and now - lastAt < 0.25 then return end
+		if UI.InsertLink(link) then lastLink, lastAt = link, now end
+	end
+	if hooksecurefunc then
+		if ChatEdit_InsertLink then
+			hooksecurefunc("ChatEdit_InsertLink", function(link) ns.SafeCall("insert link", Hooked, link) end)
+		end
+		if type(ChatFrameUtil) == "table" and type(ChatFrameUtil.InsertLink) == "function" then
+			hooksecurefunc(ChatFrameUtil, "InsertLink", function(link) ns.SafeCall("insert link", Hooked, link) end)
+		end
+		if HandleModifiedItemClick then
+			hooksecurefunc("HandleModifiedItemClick", function(link)
+				if IsShiftKeyDown and IsShiftKeyDown() then ns.SafeCall("insert link", Hooked, link) end
+			end)
+		end
 	end
 	ns.RegisterEvent("PLAYER_REGEN_DISABLED", function()
 		if ns.db.settings.hideInCombat and frame:IsShown() then combatHidden = true frame:Hide() end
