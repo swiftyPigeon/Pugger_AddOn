@@ -631,6 +631,30 @@ Check(bFeed:IsShown(), "out again: the window is back")
 Check(Call(B, B.ns.Popups.Count) == 1, "out again: the rare still up catches up as one card")
 Call(B, B.ns.Popups.CloseAll)
 
+print("== notifications: off, paused, only some")
+-- Bran turns cards off: a rare makes none, the chat button greys; an ask on his own call still
+-- shows. Paused for an hour: none until then. Dungeon groups only for the dungeons he picked.
+local bs = B.ns.db.settings
+bs.cardsOff = true
+A.target = { name = "Muted Rare", class = "rare", guid = "Creature-0-1-2-3-998-0000" }
+Call(A, A.ns.Calls.Rare)
+A.target = nil
+Advance(5)
+Check(Call(B, B.ns.Popups.Count) == 0 and Call(B, B.ns.Popups.Paused), "cards off: a rare makes no card")
+Call(B, B.ns.Popups.Card, { key = "x", title = "ask", body = "", always = true })
+Check(Call(B, B.ns.Popups.Count) == 1, "...but an ask on his own call still shows")
+Call(B, B.ns.Popups.CloseAll)
+bs.cardsOff = false
+bs.pauseUntil = B.ns.Now() + 3600
+Call(B, B.ns.Popups.Card, { key = "y", title = "t", body = "" })
+Check(Call(B, B.ns.Popups.Count) == 0, "paused for an hour: no cards")
+bs.pauseUntil = B.ns.Now() - 1
+Call(B, B.ns.Popups.Card, { key = "y", title = "t", body = "" })
+Check(Call(B, B.ns.Popups.Count) == 1, "the hour over: cards again")
+Call(B, B.ns.Popups.CloseAll)
+Check(pcall(B.ns.UI.NotifyMenu, B.env.UIParent) and pcall(B.ns.UI.DungeonMenu, B.env.UIParent), "the Notifications and dungeon menus open")
+Check(Call(B, B.ns.UI.NotifyState) == "on", "...and say notifications are on")
+
 print("== the compose box keeps the cursor")
 -- A redraw (a new post, the 30-second tick, the box growing as it gets the cursor) never hides
 -- the compose box: hiding it would take the cursor out.
@@ -782,6 +806,21 @@ local dC
 for _, c in ipairs(Call(Cc, Cc.ns.Calls.List, "groups")) do if c.kind == "D" then dC = c end end
 Check(dC ~= nil, "Cass, far away, sees the Deadmines group in Groups")
 Check(dC and Call(Cc, Cc.ns.Calls.CantAsk, dC) ~= nil, "...but level 12 can't ask (levels 17-26)")
+-- Dungeon group cards only for the dungeons picked (as if Cass were near, at the level).
+do
+	local cs, near = Cc.ns.db.settings, Cc.ns.Calls.Near
+	Cc.ns.Calls.Near = function() return true end
+	cs.groupLevelOnly = false
+	Call(Cc, Cc.ns.Popups.CloseAll)
+	cs.dungeons = { wc = true }
+	Call(Cc, Cc.ns.Popups.Call, dC)
+	local none = Call(Cc, Cc.ns.Popups.Count)
+	cs.dungeons = { dm = true }
+	Call(Cc, Cc.ns.Popups.Call, dC)
+	Check(dC and none == 0 and Call(Cc, Cc.ns.Popups.Count) == 1, "dungeon group cards only for the dungeons picked")
+	Call(Cc, Cc.ns.Popups.CloseAll)
+	cs.dungeons, cs.groupLevelOnly, Cc.ns.Calls.Near = {}, true, near
+end
 A.x = 0.9
 Call(A, A.ns.Calls.Dungeon, "ubrs", 2)
 Advance(3)

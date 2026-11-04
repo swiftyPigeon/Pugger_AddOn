@@ -70,7 +70,7 @@ end
 function Diagnostics.Status()
 	local Comm, Sync, Store = ns.Comm, ns.Sync, ns.Store
 	local lines = {
-		("Pugger %s · %s · %s"):format(ns.VERSION, tostring(ns.me), tostring(ns.faction)),
+		(ns.NAME .. " %s · %s · %s"):format(ns.VERSION, tostring(ns.me), tostring(ns.faction)),
 		("Channel: %s (%s)%s"):format(tostring(Comm.ChannelName() or "-"), Comm.Ready() and "joined" or "not joined",
 			ns.TestNet() and (" · test transport " .. ns.TestNet()) or ""),
 		("Posts held: %d · profiles: %d · following: %d · key: %s"):format(Store.Total(), ns.Count(ns.rdb.profiles),
@@ -86,7 +86,7 @@ end
 
 function Diagnostics.Bug()
 	local db = ns.db
-	local out = { "Pugger bug report", Diagnostics.Status(),
+	local out = { ns.NAME .. " bug report", Diagnostics.Status(),
 		("Client: %s %s · %s"):format(tostring((GetBuildInfo())), tostring(select(4, GetBuildInfo())), GetLocale and GetLocale() or "?"),
 		"", "Errors:" }
 	if #db.errors == 0 then out[#out + 1] = "  none" end

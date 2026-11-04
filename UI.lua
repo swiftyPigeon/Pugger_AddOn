@@ -212,7 +212,7 @@ function UI.Menu()
 				self.rows[i] = r
 			end
 			r.text:SetFontObject(FontObject(it.title and "label" or "button"))
-			r.text:SetTextColor(unpack(it.title and C.button or RGB("ece5d6")))
+			r.text:SetTextColor(unpack(it.title and C.button or (it.disabled and RGB("7d7568") or RGB("ece5d6"))))
 			r.text:ClearAllPoints()
 			r.text:SetPoint("LEFT", it.title and 8 or 22, 0)
 			r.text:SetText(it.text)
@@ -1151,7 +1151,7 @@ function UI.Build()
 			pcall(frame.SetPortraitToAsset, frame, ns.ICON)
 		end
 	end
-	SetTitle("Pugger")
+	SetTitle(ns.NAME)
 
 	-- The header: what this view is, and its buttons, one row as thick as the buttons (with the
 	-- icon small at its left when the portrait is off).
@@ -1323,7 +1323,7 @@ function UI.Render()
 	dirty, lastDraw = false, GetTime()
 	if view.tab == "mentions" and not view.sub then ns.rdb.unreadMentions = 0 end
 	local title = Title()
-	SetTitle("Pugger")
+	SetTitle(ns.NAME)
 	if view.sub and view.sub.author then
 		frame.viewTitle:SetText((UI.Who(view.sub.author)))
 	else
@@ -1523,10 +1523,77 @@ function UI.CallMenu(anchor)
 	})
 end
 
+-- Notifications: every card in one place. Off, or paused for an hour, in one click; or only
+-- some kinds, and dungeon groups only for chosen dungeons. Each switch keeps the menu open.
+function UI.NotifyState()
+	local s = ns.db.settings
+	if s.cardsOff then return L.NOTIFY_OFF end
+	if (s.pauseUntil or 0) > ns.Now() then return L.NOTIFY_PAUSED:format(date("%H:%M", s.pauseUntil)) end
+	return L.NOTIFY_ON
+end
+
+local function Notified()
+	UI.UpdateChatButton()
+	if ns.MapPins then ns.MapPins.Refresh() end
+end
+
+function UI.NotifyMenu(anchor)
+	local s = ns.db.settings
+	local function Flip(k) return function() s[k] = not s[k] Notified() UI.NotifyMenu(anchor) end end
+	local paused = (s.pauseUntil or 0) > ns.Now()
+	local chosen = 0
+	for _ in pairs(s.dungeons or {}) do chosen = chosen + 1 end
+	local off = s.cardsOff or paused
+	Menu():Open(anchor, {
+		{ text = L.NOTIFY_TITLE:format(UI.NotifyState()), title = true },
+		{ text = L.NOTIFY_ALL_OFF, check = s.cardsOff, go = function()
+			s.cardsOff = not s.cardsOff
+			if not s.cardsOff then s.pauseUntil = 0 end
+			Notified() UI.NotifyMenu(anchor)
+		end },
+		{ text = paused and L.NOTIFY_RESUME or L.NOTIFY_PAUSE_HOUR, disabled = s.cardsOff, go = function()
+			s.pauseUntil = paused and 0 or ns.Now() + 3600
+			Notified() UI.NotifyMenu(anchor)
+		end },
+		{ text = L.NOTIFY_CARDS_FOR, title = true },
+		{ text = L.MENTION_POPUPS, check = s.mentionPopups, disabled = off, go = Flip("mentionPopups") },
+		{ text = L.MENTIONS_FOLLOWED, check = s.mentionsFollowedOnly, disabled = off or not s.mentionPopups, go = Flip("mentionsFollowedOnly") },
+		{ text = L.MAP_RARE_POPUPS, check = s.rarePopups, disabled = off, go = Flip("rarePopups") },
+		{ text = L.MAP_GROUP_POPUPS, check = s.groupPopups, disabled = off, go = Flip("groupPopups") },
+		{ text = L.DUNGEON_POPUPS, check = s.dungeonPopups, disabled = off, go = Flip("dungeonPopups") },
+		{ text = chosen > 0 and L.DUNGEONS_SOME:format(chosen) or L.DUNGEONS_ALL, disabled = off or not s.dungeonPopups,
+			go = function() UI.DungeonMenu(anchor) end },
+		{ text = L.MAP_LEVEL_ONLY, check = s.groupLevelOnly, disabled = off, go = Flip("groupLevelOnly") },
+		{ text = L.CARD_SOUND, check = s.cardSound, disabled = off, go = Flip("cardSound") },
+		{ text = L.NOTIFY_ASKS_NOTE, disabled = true },
+	})
+end
+
+-- Which dungeons' groups make a card: none ticked is every dungeon.
+function UI.DungeonMenu(anchor)
+	local s = ns.db.settings
+	s.dungeons = s.dungeons or {}
+	local items = {
+		{ text = L.DUNGEONS_TITLE, title = true },
+		{ text = L.DUNGEONS_EVERY, check = next(s.dungeons) == nil, go = function() wipe(s.dungeons) UI.DungeonMenu(anchor) end },
+	}
+	for _, d in ipairs(ns.Stones.LIST) do
+		if not d.faction or d.faction == ns.faction then
+			items[#items + 1] = { text = ("%s  |cff9d9d9d%d-%d|r"):format(d.name, d.lo, d.hi), check = s.dungeons[d.key] == true, go = function()
+				s.dungeons[d.key] = not s.dungeons[d.key] or nil
+				UI.DungeonMenu(anchor)
+			end }
+		end
+	end
+	items[#items + 1] = { text = L.BACK, go = function() UI.NotifyMenu(anchor) end }
+	Menu():Open(anchor, items)
+end
+
 function UI.WindowMenu(anchor)
 	local s, w = ns.db.settings, ns.cdb.window
 	local function Flip(t, k) return function() t[k] = not t[k] or nil dirty = true end end
 	Menu():Open(anchor, {
+		{ text = L.NOTIFY_ITEM:format(UI.NotifyState()), go = function() UI.NotifyMenu(anchor) end },
 		{ text = L.MENU_WINDOW, title = true },
 		{ text = L.LOCK, check = w.locked == true, go = Flip(w, "locked") },
 		{ text = L.HIDE_IN_COMBAT, check = s.hideInCombat, go = function() s.hideInCombat = not s.hideInCombat end },
@@ -1539,8 +1606,6 @@ function UI.WindowMenu(anchor)
 		{ text = L.RESET_POSITION, go = UI.ResetPosition },
 		{ text = L.MENU_FEED, title = true },
 		{ text = L.SHOW_FOLLOWS, check = s.showFollows, go = function() s.showFollows = not s.showFollows ns.Identity.SendProfile(true) end },
-		{ text = L.MENTION_POPUPS, check = s.mentionPopups, go = function() s.mentionPopups = not s.mentionPopups end },
-		{ text = L.MENTIONS_FOLLOWED, check = s.mentionsFollowedOnly, go = function() s.mentionsFollowedOnly = not s.mentionsFollowedOnly end },
 		{ text = L.GROUPS_IN_REALM, check = s.groupsInRealm, go = function() s.groupsInRealm = not s.groupsInRealm dirty = true end },
 		{ text = L.ASKS_FROM:format(L["ASKS_" .. (s.asks or "all"):upper()]), go = function()
 			s.asks = s.asks == "all" and "friends" or (s.asks == "friends" and "off" or "all")
@@ -1602,7 +1667,7 @@ local function MinimapButton()
 	b:SetScript("OnDragStop", function(self) self:SetScript("OnUpdate", nil) end)
 	b:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-		GameTooltip:AddLine("Pugger")
+		GameTooltip:AddLine(ns.NAME)
 		GameTooltip:AddLine(L.MINIMAP_TIP, 1, 1, 1, true)
 		GameTooltip:Show()
 	end)
@@ -1644,8 +1709,9 @@ local function ChatButton()
 	end)
 	b:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-		GameTooltip:AddLine("Pugger")
+		GameTooltip:AddLine(ns.NAME)
 		GameTooltip:AddLine(L.CHAT_BUTTON_TIP, 1, 1, 1, true)
+		if ns.Popups.Paused() then GameTooltip:AddLine(L.NOTIFY_TIP:format(UI.NotifyState()), 1, 0.82, 0, true) end
 		GameTooltip:Show()
 	end)
 	b:SetScript("OnLeave", function() GameTooltip:Hide() end)
@@ -1663,6 +1729,8 @@ function UI.UpdateChatButton()
 	chatButton = chatButton or ChatButton()
 	local n = ns.rdb and ns.rdb.unreadMentions or 0
 	chatButton.count:SetText(n > 0 and tostring(n) or "")
+	-- (Greyed while cards are off or paused: the count still counts.)
+	if chatButton.icon.SetDesaturated then chatButton.icon:SetDesaturated(ns.Popups and ns.Popups.Paused() or false) end
 	if frame:IsShown() then chatButton:Hide() else chatButton:Show() end
 end
 
@@ -1682,8 +1750,8 @@ end
 
 -- The key binding (Bindings.xml).
 function Pugger_ToggleBinding() ns.SafeCall("binding", UI.Toggle) end
-BINDING_HEADER_PUGGER = "Pugger"
-BINDING_NAME_PUGGER_TOGGLE = "Toggle the Pugger feed"
+BINDING_HEADER_PUGGER = ns.NAME
+BINDING_NAME_PUGGER_TOGGLE = "Toggle the " .. ns.NAME .. " feed"
 
 ns.On("LOGIN", function()
 	UI.Build()

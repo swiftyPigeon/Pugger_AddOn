@@ -1,10 +1,12 @@
-# Pugger
+# PUG Social
+
+(Its folder and files keep the name Pugger: `Interface/AddOns/Pugger`.)
 
 A public social feed for **WoW: Forever**, inside the game: post, follow, like, reply and repost,
 read a timeline of your realm and faction, and call rares, camps and groups on everyone's map.
 Built on legacy chat: nothing outside the game. Main command: **`/pug`**.
 
-Version **0.1.1** (2026-11-03).
+Version **0.1.2** (2026-11-04).
 
 ## What it does
 - **Posts** of up to 80 characters, with item, spell and quest links (shift-click), `#tags` and
@@ -22,11 +24,13 @@ Version **0.1.1** (2026-11-03).
 - **Quiet in group instances:** in a dungeon, raid, battleground or arena with others, the window
   steps aside and no cards pop up; on the way out, calls still live (rares, groups, asks to join
   yours) catch up as cards. A switch in the window's menu.
+- **Notifications your way:** all off, paused for an hour, or only some kinds (mentions, rares,
+  quest groups, dungeon groups for the dungeons you pick): right-click the button, Notifications.
 - **Live, not an archive:** posts stay 6 hours (2 on a busy feed; mentions of you a day, your own
   posts a week). When the feed passes 120 posts an hour, it shows
   who you follow, then posts written near you (one click shows everything); on a big realm the
   add-on's own messages slow down so the channel stays light.
-- **Where it sits:** Pugger's button by the chat (just above the game's social button, with your
+- **Where it sits:** PUG Social's button by the chat (just above the game's social button, with your
   unread mentions) or on the minimap, and its cards above the chat, by the minimap or at the top
   of the screen: a short setup at the first launch, `/pug setup` after.
 - **Safety:** mute, block, word filter, flood limits (3 posts from one spot in 15 minutes: move
@@ -45,7 +49,8 @@ mute. Deleting removes a post from the feed, not from anyone who already saved i
 | `/pug reset`, `/pug lock` | back under the minimap; lock in place |
 | `/pug rare`, `/pug camp [note]`, `/pug group [n] [quest]` | map calls |
 | `/pug map` | which calls show on the map |
-| `/pug setup` | where Pugger's button (by the chat, on the minimap, or both) and its cards go |
+| `/pug cards [on\|off\|pause]` | notifications: the menu, or all on, all off, or paused for an hour |
+| `/pug setup` | where PUG Social's button (by the chat, on the minimap, or both) and its cards go |
 | `/pug bio`, `/pug filter`, `/pug mute|block|follow <name>` | your profile, the word filter, people |
 | `/pug privacy`, `/pug status`, `/pug bug` | the limits; what the add-on sees; a bug report to copy |
 | `/pug demo [off]` | sample posts and calls, only on your screen |
@@ -57,7 +62,7 @@ mute. Deleting removes a post from the feed, not from anyone who already saved i
 - `tools/build-zip.sh` builds the release zip from the committed tree.
 
 ## Credits and licenses
-- Pugger by SwiftyPigeon512, MIT (`LICENSE.txt`). Parts are copied from Guild Master Forever
+- PUG Social by SwiftyPigeon512, MIT (`LICENSE.txt`). Parts are copied from Guild Master Forever
   (MIT), itself derived from the Olympus add-on (MIT); `LICENSE.txt` keeps both notices.
 - Libraries, each under its own license: HereBeDragons (BSD, `libs/HereBeDragons/LICENSE.txt`),
   CallbackHandler-1.0 (BSD, `libs/CallbackHandler-1.0/LICENSE-Ace3.txt`), LibStub (public domain).
@@ -65,4 +70,4 @@ mute. Deleting removes a post from the feed, not from anyone who already saved i
   and Cinzel by the Cinzel Project Authors (`media/fonts/OFL-Cinzel.txt`; the Bold weight cut from
   its variable font).
 - The name: a "PUG" is a pick-up group, and a pugger is a player who joins them; this feed is where
-  your realm and faction find one. Pugger is free, never monetized, and has nothing to do with X Corp.
+  your realm and faction find one. PUG Social is free, never monetized, and has nothing to do with X Corp.

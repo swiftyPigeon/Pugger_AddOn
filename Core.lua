@@ -4,8 +4,8 @@ local ADDON, ns = ...
 -- timer helpers, and the way names are written, follow Guild Master Forever's Core.lua (MIT,
 -- see LICENSE.txt).
 
-ns.NAME = "Pugger"
-ns.VERSION = "0.1.1"
+ns.NAME = "PUG Social" -- the name players see (the add-on, its folder, saved data and channels stay Pugger)
+ns.VERSION = "0.1.2"
 ns.PREFIX = "PUGGER"                  -- add-on message prefix (16 characters at most)
 ns.CHANNELS = { Alliance = "PuggerA", Horde = "PuggerH" } -- + 1, 2, 3...: the numbered channels
 ns.CHANNEL_MAX = 6                   -- the last backup channel tried
@@ -25,8 +25,13 @@ local DEFAULTS = {
 	mentionPopups = true,   -- a card beside the minimap when someone mentions this player
 	mentionsFollowedOnly = false, -- ...only from people this player follows
 	rarePopups = true,      -- a card for a rare call in this zone
-	groupPopups = true,     -- a card for a group call nearby or at a stone close by
+	groupPopups = true,     -- a card for a quest group call nearby
+	dungeonPopups = true,   -- a card for a dungeon group at a stone close by
+	dungeons = {},          -- ...only for these dungeons (Stones keys = true); empty: every dungeon
 	groupLevelOnly = true,  -- group cards only at a fitting level
+	cardsOff = false,       -- no cards at all (asks on the player's own calls still come)
+	pauseUntil = 0,         -- ...or none until this time (the menu's "pause for an hour")
+	cardSound = true,       -- a card plays the whisper sound
 	showRares = true, showCamps = true, showGroups = true, -- on the world map and minimap
 	groupsInRealm = true,   -- dungeon calls as a small line in the Realm timeline
 	asks = "all",           -- who may ask to join this player's calls: all | friends | off
@@ -317,6 +322,8 @@ ns.RegisterEvent("ADDON_LOADED", function(name)
 	local db = PuggerDB
 	ns.db = db
 	db.settings = db.settings or {}
+	-- (Until 0.1.2 one switch, groupPopups, was for dungeon groups too.)
+	if db.settings.dungeonPopups == nil and db.settings.groupPopups ~= nil then db.settings.dungeonPopups = db.settings.groupPopups end
 	Fill(db.settings, DEFAULTS)
 	db.log = db.log or {}
 	db.errors = db.errors or {}

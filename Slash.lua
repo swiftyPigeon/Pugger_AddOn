@@ -27,6 +27,16 @@ local COMMANDS = {
 		if n then ns.Calls.Group(what, n) else ns.Popups.GroupAsk() end
 	end,
 	map = function() ns.MapPins.ToggleMenu() end,
+	-- Notifications: the menu, or straight on, off, or paused for an hour.
+	cards = function(rest)
+		local st, how = ns.db.settings, rest:lower()
+		if how == "" then return ns.UI.NotifyMenu() end
+		if how == "off" then st.cardsOff = true
+		elseif how == "on" then st.cardsOff, st.pauseUntil = false, 0
+		elseif how == "pause" then st.pauseUntil = ns.Now() + 3600 end
+		ns.UI.UpdateChatButton()
+		ns.Print(L.CARDS_SLASH:format(ns.UI.NotifyState()))
+	end,
 	privacy = function() ns.Consent.Show() end,
 	setup = function() ns.Popups.Setup() end,
 	status = function() for line in ns.Diagnostics.Status():gmatch("[^\n]+") do ns.Print(line) end end,

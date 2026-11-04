@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.1.2 (2026-11-04)
+- Shown as PUG Social, its name on CurseForge: the window, buttons, tooltips, setup, key binding
+  and add-on list. The folder, saved data, channels and `/pug` stay as they were, so nothing
+  is lost and 0.1.1 users still see each other.
+- Notifications in one place: right-click PUG Social's button (or the menu), then Notifications.
+  Turn every card off, or pause them for an hour, in one click; or keep only some: mentions,
+  rares, quest groups, dungeon groups (all, or only the dungeons ticked), at your level, with or
+  without the sound. Asks to join your own groups always show. The button greys while cards are
+  off. `/pug cards on | off | pause` does the same from chat.
+
 ## 0.1.1 (2026-11-03)
 - The feed's title shows how many players use Pugger right now ("12 users"): those heard from in
   the last half hour, you included. Its tooltip tells more, and how many are known in the feed.

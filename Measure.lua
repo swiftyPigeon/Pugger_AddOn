@@ -135,7 +135,7 @@ function Measure.Events()
 end
 
 function Measure.Report()
-	local out = { "Pugger Phase 0 results", ns.Diagnostics.Status(), "" }
+	local out = { ns.NAME .. " Phase 0 results", ns.Diagnostics.Status(), "" }
 	local function Dump(k, v, indent)
 		if type(v) == "table" then
 			out[#out + 1] = indent .. tostring(k) .. ":"
@@ -151,7 +151,7 @@ function Measure.Report()
 	for k in pairs(ns.db.measure) do keys[#keys + 1] = k end
 	table.sort(keys)
 	for _, k in ipairs(keys) do Dump(k, ns.db.measure[k], "") end
-	ns.Diagnostics.ShowCopy("Pugger Phase 0", (table.concat(out, "\n"):gsub("|", "!")))
+	ns.Diagnostics.ShowCopy(ns.NAME .. " Phase 0", (table.concat(out, "\n"):gsub("|", "!")))
 end
 
 function Measure.Slash(rest)

@@ -89,9 +89,7 @@ function MapPins.ToggleMenu(anchor)
 		{ text = ns.L.MAP_RARES, check = s.showRares, go = Switch("showRares") },
 		{ text = ns.L.MAP_CAMPS, check = s.showCamps, go = Switch("showCamps") },
 		{ text = ns.L.MAP_GROUPS, check = s.showGroups, go = Switch("showGroups") },
-		{ text = ns.L.MAP_RARE_POPUPS, check = s.rarePopups, go = Switch("rarePopups") },
-		{ text = ns.L.MAP_GROUP_POPUPS, check = s.groupPopups, go = Switch("groupPopups") },
-		{ text = ns.L.MAP_LEVEL_ONLY, check = s.groupLevelOnly, go = Switch("groupLevelOnly") },
+		{ text = ns.L.NOTIFY_ITEM:format(ns.UI.NotifyState()), go = function() ns.UI.NotifyMenu(anchor) end },
 	})
 end
 
@@ -120,7 +118,7 @@ local function MapButton()
 	toggle:SetScript("OnClick", function(self) MapPins.ToggleMenu(self) end)
 	toggle:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-		GameTooltip:AddLine("Pugger", 0.89, 0.71, 0.36)
+		GameTooltip:AddLine(ns.NAME, 0.89, 0.71, 0.36)
 		GameTooltip:AddLine(ns.L.MAP_BUTTON_TIP, 1, 1, 1, true)
 		GameTooltip:Show()
 	end)

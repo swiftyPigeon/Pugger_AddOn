@@ -85,9 +85,18 @@ local function NewCard()
 	return f
 end
 
--- spec: { key, title, body, kind (UI.KIND key) | color, life, buttons = { { label, go, kind, keep } } }
+-- Cards turned off, or paused for a while (the Notifications menu, /pug cards).
+function Popups.Paused()
+	local s = ns.db and ns.db.settings
+	if not s then return false end
+	return s.cardsOff == true or (s.pauseUntil or 0) > ns.Now()
+end
+
+-- spec: { key, title, body, kind (UI.KIND key) | color, life, buttons = { { label, go, kind, keep } },
+-- always (shown while cards are paused: asks on the player's own calls, what they clicked) }
 function Popups.Card(spec)
 	if ns.Quiet() then return nil end
+	if not spec.always and Popups.Paused() then return nil end
 	local UI = UIx()
 	if spec.key then
 		for _, c in ipairs(cards) do if c.key == spec.key then Close(c) break end end
@@ -127,7 +136,7 @@ function Popups.Card(spec)
 	f:Show()
 	table.insert(cards, 1, f)
 	Layout()
-	if spec.sound ~= false and PlaySound and SOUNDKIT then pcall(PlaySound, SOUNDKIT.TELL_MESSAGE or 3081) end
+	if spec.sound ~= false and ns.db.settings.cardSound ~= false and PlaySound and SOUNDKIT then pcall(PlaySound, SOUNDKIT.TELL_MESSAGE or 3081) end
 	return f
 end
 
@@ -159,7 +168,8 @@ function Popups.Call(c)
 	elseif c.kind == "G" then
 		if not s.groupPopups or (s.groupLevelOnly and not Calls.LevelFits(c)) then return end
 	elseif c.kind == "D" then
-		if not s.groupPopups or (s.groupLevelOnly and not Calls.LevelFits(c)) or not Calls.Near(c.map) then return end
+		if not s.dungeonPopups or (s.groupLevelOnly and not Calls.LevelFits(c)) or not Calls.Near(c.map) then return end
+		if next(s.dungeons or {}) and not s.dungeons[c.a] then return end
 	else
 		return -- (a camp makes no card)
 	end
@@ -180,7 +190,7 @@ function Popups.Ask(c, ask)
 	local class = (LOCALIZED_CLASS_NAMES_MALE or {})[ask.class] or ask.class
 	local where = ask.yards and L.YARDS_AWAY:format(ask.yards) or (ask.zone ~= "" and L.IN_ZONE:format(ask.zone) or "")
 	Popups.Card({
-		key = "a" .. c.id .. ask.name, kind = c.kind, life = Popups.ASK_LIFE,
+		key = "a" .. c.id .. ask.name, kind = c.kind, life = Popups.ASK_LIFE, always = true,
 		title = ask.role and L.CARD_ASK_AS:format(UI.Hex(UI.ClassColor(ask.class), ns.DisplayName(ask.name)), UI.RoleIcon(ask.role) .. " " .. L["ROLE_" .. ask.role])
 			or L.CARD_ASK:format(UI.Hex(UI.ClassColor(ask.class), ns.DisplayName(ask.name))),
 		body = L.ASK_BODY:format(ask.level, class or "?", where, UI.CallTitle(c)),
@@ -253,7 +263,7 @@ end
 -- A meeting stone under the mouse (Calls.OnTooltip): never automatic, the player's click.
 function Popups.StoneSeen()
 	Popups.Card({
-		key = "stone", kind = "D", life = 60, sound = false,
+		key = "stone", kind = "D", life = 60, sound = false, always = true,
 		title = L.STONE_SEEN_TITLE, body = L.STONE_SEEN_BODY,
 		-- (Kept open: the dungeon menu opens beside its button, and the card closes once one is picked.)
 		buttons = { { label = L.LOOK_FOR_GROUP, go = function(b) ns.Calls.StartAtStone(b) end, kind = "main", keep = true }, { label = L.NO } },
@@ -429,7 +439,7 @@ function Popups.Setup()
 					if row.key == "launcher" then ns.UI.ApplyLauncher()
 					else
 						Layout()
-						Popups.Card({ key = "setup", title = L.SETUP_SAMPLE, body = L.SETUP_SAMPLE_BODY, life = 8, sound = false })
+						Popups.Card({ key = "setup", title = L.SETUP_SAMPLE, body = L.SETUP_SAMPLE_BODY, life = 8, sound = false, always = true })
 					end
 				end, "line")
 			end
@@ -531,7 +541,7 @@ function Popups.Dialog(spec)
 end
 
 function Popups.Confirm(text, go)
-	Popups.Dialog({ title = "Pugger", body = text, ok = L.YES, go = go })
+	Popups.Dialog({ title = ns.NAME, body = text, ok = L.YES, go = go })
 end
 
 -- A whisper from the add-on's own box (sent with SendChatMessage on the player's Enter or

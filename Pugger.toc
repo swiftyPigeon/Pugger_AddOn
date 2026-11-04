@@ -1,8 +1,8 @@
 ## Interface: 16001
-## Title: |cffe2b65cPugger|r
-## Notes: Pugger: a public social feed for your realm and faction: posts, follows, likes, replies, rare calls, camps and dungeon groups from meeting stones. Faction-wide, location-based, built on legacy chat.
+## Title: |cffe2b65cPUG Social|r
+## Notes: PUG Social: a public social feed for your realm and faction: posts, follows, likes, replies, rare calls, camps and dungeon groups from meeting stones. Faction-wide, location-based, built on legacy chat.
 ## Author: SwiftyPigeon512
-## Version: 0.1.1
+## Version: 0.1.2
 ## SavedVariables: PuggerDB
 ## IconTexture: Interface\AddOns\Pugger\media\logo64
 ## X-License: MIT
