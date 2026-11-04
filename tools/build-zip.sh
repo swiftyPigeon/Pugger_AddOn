@@ -1,5 +1,5 @@
 #!/bin/sh
-# Builds the CurseForge upload: Pugger_CF_<version>.zip, beside the repo (outside it). From the
+# Builds the CurseForge upload: PUG_social_CF_<version>.zip, beside the repo (outside it). From the
 # committed tree only (git archive HEAD): nothing uncommitted gets in. The zip holds one folder,
 # Pugger/, as WoW's AddOns folder wants it, without tools/. (After Guild Master Forever's.)
 set -e
@@ -25,7 +25,7 @@ for f in $(git ls-files '*.lua'); do
 done
 luajit tools/sim.lua > /dev/null || { echo "tools/sim.lua fails: run it to see why." >&2; exit 1; }
 
-OUT="$REPO/../Pugger_CF_${TOC_VERSION}.zip"
+OUT="$REPO/../PUG_social_CF_${TOC_VERSION}.zip"
 rm -f "$OUT"
 git archive --format=zip --prefix=Pugger/ -o "$OUT" HEAD -- . ':(exclude).gitignore' ':(exclude)tools'
 echo "Built $OUT (version $TOC_VERSION, commit $(git rev-parse --short HEAD))"
