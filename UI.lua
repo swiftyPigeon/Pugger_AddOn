@@ -635,7 +635,7 @@ function UI.CallActions(c)
 		if (c.kind == "G" or c.kind == "D") and waiting > 0 then Add(L.ASKS_N:format(waiting), function() ns.Popups.ShowAsks(c) end, "main") end
 		if c.kind == "C" then Add(L.RENEW, function() Calls.Renew(c.id) end) end
 		if c.kind == "R" then Add(L.DEAD, function() Calls.Vote(c.id, "d") end) end
-		Add(L.END_CALL, function() Calls.End(c.id, "x") end)
+		Add(L.END_CALL, function() Calls.End(c.id, "x", true) end)
 		return acts
 	end
 	if c.kind == "R" then
@@ -916,17 +916,70 @@ function UI.SavedHeight()
 	ns.cdb.window.h = h
 	return h
 end
+-- The frame's side edges (Forever's metal NineSlice): drawn from the top corner down to the
+-- bottom one, so on a window shorter than the two corners they stood out above it as spikes.
+-- Collapsed, the corners meet and the edges go.
+local function SideEdges(show)
+	local nine = type(frame.NineSlice) == "table" and frame.NineSlice
+	if not nine then return end
+	for _, k in ipairs({ "LeftEdge", "RightEdge" }) do
+		local t = nine[k]
+		if type(t) == "table" and t.Show then if show then t:Show() else t:Hide() end end
+	end
+end
+
+-- The corners: metal 100 tall on a 57 collapsed window, so a bottom corner's upright stood out
+-- above it and a top one's hung below. Collapsed, each is cut to the window's height (its
+-- texture trimmed to match, from the far end); opened, it gets its own height and texture back.
+local trimmed = {}
+local function TrimCorners(collapsed)
+	local nine = type(frame.NineSlice) == "table" and frame.NineSlice
+	if not nine then return end
+	for _, k in ipairs({ "TopLeftCorner", "TopRightCorner", "BottomLeftCorner", "BottomRightCorner" }) do
+		local top = k:find("^Top") ~= nil
+		local t, keep = nine[k], trimmed[k]
+		if type(t) == "table" and t.GetTexCoord and t.SetTexCoord and t.GetHeight then
+			if collapsed then
+				keep = keep or { h = t:GetHeight(), c = { t:GetTexCoord() } }
+				trimmed[k] = keep
+				local fh, c = frame:GetHeight(), keep.c
+				if keep.h and fh and keep.h > fh and #c == 8 then
+					local f = fh / keep.h
+					t:SetHeight(fh)
+					-- (UL, LL, UR, LR. A top corner, held by its top, keeps its top part: the lower
+					-- y moved up toward the upper; a bottom one keeps its bottom: the upper moved down.)
+					if top then
+						t:SetTexCoord(c[1], c[2], c[3], c[2] + (c[4] - c[2]) * f, c[5], c[6], c[7], c[6] + (c[8] - c[6]) * f)
+					else
+						t:SetTexCoord(c[1], c[4] - (c[4] - c[2]) * f, c[3], c[4], c[5], c[8] - (c[8] - c[6]) * f, c[7], c[8])
+					end
+				end
+				ns.Log("collapse: %s %.0f tall, window %.0f", k, keep.h or -1, fh or -1)
+			elseif keep then
+				t:SetHeight(keep.h)
+				t:SetTexCoord(unpack(keep.c))
+				trimmed[k] = nil
+			end
+		end
+	end
+end
+
 function UI.ApplyCollapse(collapsed)
 	ns.cdb.window.collapsed = collapsed or nil
+	SideEdges(not collapsed)
 	local parts = { frame.inset, frame.compose, frame.callbar, frame.groupbar, frame.head, frame.grip }
 	if collapsed then
 		for _, p in ipairs(parts) do p:Hide() end
 		for _, t in ipairs(frame.tabs) do t:Hide() end
-		frame:SetHeight(UI.HEAD + 4)
+		-- (Room under the header row's buttons, 27-47 from the top, for the frame's bottom edge: at
+		-- +4 Forever's border sat right against them.)
+		frame:SetHeight(UI.HEAD + 9)
+		TrimCorners(true)
 	else
 		frame.inset:Show()
 		frame.grip:Show()
 		for _, t in ipairs(frame.tabs) do t:Show() end
+		TrimCorners(false)
 		frame:SetHeight(UI.SavedHeight())
 		dirty = true
 	end
@@ -1117,7 +1170,11 @@ function UI.Build()
 	info:SetSize(20, 20)
 	if type(frame.CloseButton) == "table" then info:SetPoint("RIGHT", frame.CloseButton, "LEFT", 0, 0)
 	else info:SetPoint("TOPRIGHT", -26, -2) end
-	info:SetFrameLevel(frame:GetFrameLevel() + 10)
+	-- Over the title bar's art, as the close button is (Forever's metal title bar is a NineSlice
+	-- some 500 levels up: below it, the "i" answered the mouse but was hidden; as GMF's).
+	local border = type(frame.NineSlice) == "table" and frame.NineSlice.GetFrameLevel and frame.NineSlice:GetFrameLevel() or frame:GetFrameLevel()
+	local close = type(frame.CloseButton) == "table" and frame.CloseButton.GetFrameLevel and frame.CloseButton:GetFrameLevel() or 0
+	info:SetFrameLevel(math.max(border + 10, close, frame:GetFrameLevel() + 10))
 	info.icon = info:CreateTexture(nil, "ARTWORK")
 	info.icon:SetSize(18, 18)
 	info.icon:SetPoint("CENTER")
@@ -1172,7 +1229,7 @@ function UI.Build()
 	frame.titleTip:SetScript("OnEnter", function(self)
 		if not self.hint or self.hint == "" then return end
 		GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
-		GameTooltip:SetText(self.hint, 1, 1, 1, true)
+		GameTooltip:AddLine(self.hint, 1, 1, 1, true) -- (SetText's 5th argument is alpha on newer clients, wrap on older)
 		if self.online then UI.OnlineTip() end
 		GameTooltip:Show()
 	end)
@@ -1466,7 +1523,7 @@ end
 
 -- A shift-clicked link: into the compose box, only while the player has it focused.
 function UI.InsertLink(link)
-	if not frame or not frame:IsShown() or type(link) ~= "string" then return false end
+	if not frame or not frame:IsShown() or ns.Secret(link) or type(link) ~= "string" then return false end
 	local edit = frame.compose.edit
 	if not edit:IsVisible() or not edit:HasFocus() then return false end
 	edit:Insert(link)
@@ -1770,7 +1827,7 @@ ns.On("LOGIN", function()
 	-- HandleModifiedItemClick. Each that exists is hooked; a click reaching two is inserted once.
 	local lastLink, lastAt = nil, 0
 	local function Hooked(link)
-		if type(link) ~= "string" then return end
+		if ns.Secret(link) or type(link) ~= "string" then return end
 		local now = GetTime()
 		if link == lastLink and now - lastAt < 0.25 then return end
 		if UI.InsertLink(link) then lastLink, lastAt = link, now end

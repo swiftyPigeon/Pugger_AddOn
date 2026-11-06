@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.1.3 (2026-11-06)
+- **Players can see each other on Forever.** Forever drops add-on messages on custom channels
+  (every PUG Social so far sent into the void and saw "1 user"), and lets an add-on write on a
+  channel only during a click. Now what you do (post, reply, repost, like, delete, a call, an
+  invite) goes on the hidden channel as a line of chat text, at the click; catching up,
+  profiles and stones go by whisper to players in the channel. Everyone needs this version:
+  0.1.2 and earlier hear nothing.
+- "N users" is the channel's member list: right at once, not after half an hour.
+- Forever's channels reach players of other realms, a whisper only yours and the ones connected
+  to it: posts reach everyone in the channel, and nobody gets whispered where a whisper can't
+  go (no more "No player named ... is currently playing").
+- The feed's hidden channel no longer takes **/1** from General on Forever (General comes in
+  late there, and our channel took its number: typing /1 went to the wrong place). It now
+  joins after the game's own channels and moves behind them if it got there first.
+- The "N users" count fills in much faster: everyone checks in every ten minutes (was half an
+  hour; slower on a busy realm, as before), and on a small feed someone heard for the first
+  time is asked for their profile at once, so they count within seconds.
+- The count's tooltip reads "Players with PUG Social online now: 1" (was "1 players").
+- After a `/reload` the add-on says it's here right away (its profile and a sync check), as at
+  login, instead of staying quiet up to 15 minutes.
+- Hovering over the feed's title no longer gives a Lua error on newer clients (the tooltip
+  asked for its text the old way).
+- The limits "i" by the close button shows on Forever (it was hidden under the title bar).
+- The window, minimized, has room between its header row and its bottom edge, and no metal
+  spikes standing out above or below it on Forever.
+- No more "secret keys" errors on Forever when hovering over things in the world: newer clients
+  hand some game data over as secret values (tooltip text, spell ids, links, the target), and
+  the add-on now leaves those alone instead of reading them.
+- `/pug status` shows "echo": your own messages the server sent back, so you can tell the
+  channel works even when nobody else is online. A second line counts the add-on messages that
+  come in (every add-on's, ours, hidden by the client, from another channel).
+- `/pug measure echo` sends one message to yourself on each way (the channel, logged, a whisper,
+  say, guild) and says which the server sent back.
+
 ## 0.1.2 (2026-11-04)
 - Shown as PUG Social, its name on CurseForge: the window, buttons, tooltips, setup, key binding
   and add-on list. The folder, saved data, channels and `/pug` stay as they were, so nothing

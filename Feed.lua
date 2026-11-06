@@ -80,16 +80,17 @@ function Feed.Post(text, opt, done)
 		end
 		local mapID, x, y = ns.Calls.MyPlace()
 		if mapID then p.pin = Codec.EncodePin(mapID, x, y) end
-		ns.Identity.Sign(Codec.PostSigned(p), function(sig)
-			if not sig then return done(false, ns.L.KEY_NOT_READY) end
-			p.s, p.v, p.sv = sig, "direct", true
-			Store.Add(p)
-			if p.f ~= "p" then ns.Safety.NoteSpot(ns.me, p.pin, ns.Now()) end
-			-- Logged: the server keeps the text, so abuse can be reported to Blizzard.
-			ns.Comm.Send(Codec.EncodePost(p), { logged = true })
-			Changed()
-			done(true)
-		end)
+		-- Signed and sent before the click is over: the channel takes text only then.
+		local sig = ns.Identity.SignNow(Codec.PostSigned(p))
+		if not sig then return done(false, ns.L.KEY_NOT_READY) end
+		p.s, p.v, p.sv = sig, "direct", true
+		Store.Add(p)
+		if p.f ~= "p" then ns.Safety.NoteSpot(ns.me, p.pin, ns.Now()) end
+		ns.Identity.SayProfileIfDue()
+		-- Logged: the server keeps the text, so abuse can be reported to Blizzard.
+		ns.Comm.Send(Codec.EncodePost(p), { logged = true, now = true })
+		Changed()
+		done(true)
 	end)
 end
 
@@ -114,11 +115,10 @@ function Feed.Delete(id)
 	local at = ns.Now()
 	Store.Tomb(id, at, ns.me)
 	Changed()
-	ns.Identity.Sign(Codec.DeleteSigned(id, at), function(sig)
-		if not sig then return end
-		ns.rdb.tombs[id].s = sig
-		ns.Comm.Send(Codec.EncodeDelete(id, at, sig))
-	end)
+	local sig = ns.Identity.SignNow(Codec.DeleteSigned(id, at))
+	if not sig then return end
+	ns.rdb.tombs[id].s = sig
+	ns.Comm.Send(Codec.EncodeDelete(id, at, sig), { now = true })
 end
 
 function Feed.Like(id, on)
@@ -128,7 +128,7 @@ function Feed.Like(id, on)
 	p.lk[ns.me] = on or nil
 	ns.rdb.myLikes[id] = on and ns.Now() or nil
 	Changed()
-	if not p.demo then ns.Comm.Send(("L1~%s~%s"):format(id, on and "1" or "0"), { key = "L1" .. id }) end
+	if not p.demo then ns.Comm.Send(("L1~%s~%s"):format(id, on and "1" or "0"), { now = true }) end
 end
 
 function Feed.Follow(name, on)

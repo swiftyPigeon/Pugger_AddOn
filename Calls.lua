@@ -250,7 +250,7 @@ local function Broadcast(c)
 		local ok = pcall(C_ChatInfo.SendAddonMessageLogged, ns.PREFIX, msg, Calls.GROUP_DIST)
 		if ok then return end
 	end
-	ns.Comm.Send(msg, { logged = true, key = "M1" .. c.cid })
+	ns.Comm.Send(msg, { logged = true, now = true }) -- (every Broadcast is a click's: make, renew, invite)
 end
 
 -- fields: a, b, c, note, lo, hi, stone. Returns the call, or nil and why.
@@ -258,7 +258,7 @@ local function Make(kind, map, x, y, fields)
 	if not ns.Comm.Ready() then return nil, ns.L.NOT_CONNECTED end
 	if not ns.Safety.CanPost() then return nil, ns.L.NEED_LEVEL:format(ns.Safety.LEVEL_TO_POST) end
 	if not Allowed(kind) then return nil, ns.L.CALL_LIMIT end
-	if mine[kind] and active[mine[kind]] and not active[mine[kind]].ended then Calls.End(mine[kind], "x") end
+	if mine[kind] and active[mine[kind]] and not active[mine[kind]].ended then Calls.End(mine[kind], "x", true) end
 	cid = (cid + 1) % 46656
 	local now = ns.Now()
 	local c = {
@@ -287,7 +287,7 @@ function Calls.RareTarget()
 	local class = CLASS[UnitClassification("target") or ""]
 	if not class then return nil end
 	local guid, name = UnitGUID("target"), UnitName("target")
-	if type(guid) ~= "string" or type(name) ~= "string" then return nil end
+	if ns.Secret(guid, name) or type(guid) ~= "string" or type(name) ~= "string" then return nil end
 	local npc = guid:match("^%a+%-%d+%-%d+%-%d+%-%d+%-(%d+)%-")
 	return name, class, npc or "0"
 end
@@ -358,13 +358,14 @@ function Calls.Dungeon(key, need, note)
 	end
 end
 
--- Ends a call of ours (f: full, x: closed), or votes on someone else's (u, d).
-function Calls.End(id, how)
+-- Ends a call of ours (f: full, x: closed), or votes on someone else's (u, d). click: the
+-- player did it (said on the channel); else the add-on did (left the stone): whispered around.
+function Calls.End(id, how, click)
 	local c = active[id]
 	if not c or not c.mine then return end
 	c.ended = how
 	if mine[c.kind] == id then mine[c.kind] = nil end
-	if not c.demo then ns.Comm.Send(("M2~%s~%s~%s"):format(ns.me, Codec.Base36(c.cid), how)) end
+	if not c.demo then ns.Comm.Send(("M2~%s~%s~%s"):format(ns.me, Codec.Base36(c.cid), how), { now = click }) end
 	Changed()
 end
 
@@ -380,7 +381,7 @@ function Calls.Vote(id, v)
 	local c = active[id]
 	if not c or c.kind ~= "R" or c.votes[ns.me] == v then return end
 	c.votes[ns.me] = v
-	if not c.demo then ns.Comm.Send(("M2~%s~%s~%s"):format(c.caller, Codec.Base36(c.cid), v), { key = "M2" .. id }) end
+	if not c.demo then ns.Comm.Send(("M2~%s~%s~%s"):format(c.caller, Codec.Base36(c.cid), v), { now = true }) end
 	Calls.Settle(c)
 	Changed()
 end
@@ -648,7 +649,7 @@ function Calls.Decide(id, name, yes)
 	-- Their role is filled: the call says what it still needs (or, none left, it is full).
 	if ask.role and c.roles then
 		c.b = c.roles:gsub(ask.role, "", 1)
-		if c.b == "" then return Calls.End(id, "f") end
+		if c.b == "" then return Calls.End(id, "f", true) end
 		Calls.Read(c)
 		Broadcast(c)
 	end
@@ -741,7 +742,7 @@ function Calls.OnTooltip(tip)
 	if not tip or (tip.GetUnit and tip:GetUnit()) then return end
 	local line = _G[(tip.GetName and tip:GetName() or "GameTooltip") .. "TextLeft1"]
 	local text = line and line.GetText and line:GetText()
-	if type(text) ~= "string" or not STONE_NAMES[text] then return end
+	if ns.Secret(text) or type(text) ~= "string" or not STONE_NAMES[text] then return end
 	local map, x, y = Calls.MyPosition()
 	if not map then return end
 	seen = { t = GetTime(), map = map, x = x, y = y }
@@ -774,7 +775,7 @@ end
 -- The player used a meeting stone (its summoning spell): the prompt for that zone's stones.
 local SUMMON_SPELLS = { [23598] = true } -- "Meeting Stone Summon" (Phase 0 confirms on Forever)
 function Calls.UsedStone(spellID)
-	if not SUMMON_SPELLS[spellID] then return end
+	if ns.Secret(spellID) or not SUMMON_SPELLS[spellID] then return end
 	local map = Calls.MyZone()
 	local list = map and ns.Stones.OfZone(map) or {}
 	if #list == 0 then return end

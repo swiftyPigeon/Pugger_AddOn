@@ -14,6 +14,9 @@ local bitlib = require("bit")
 ---------------------------------------------------------------------------
 
 local NOW = 0          -- seconds since the start
+-- Inside a player's click or key press (Call): only then may an add-on write on a channel, as
+-- Forever has it. Timers and events run outside one.
+local HW = false
 local BASE = 1793400000 -- server time at the start
 local tasks = {}
 local seq = 0
@@ -32,10 +35,10 @@ local function RunUntil(t)
 		if not best then break end
 		table.remove(tasks, bi)
 		NOW = math.max(NOW, best.at)
-		local prev = current
-		current = best.client
+		local prev, hw = current, HW
+		current, HW = best.client, false
 		local ok, err = pcall(best.fn)
-		current = prev
+		current, HW = prev, hw
 		if not ok then print("TIMER ERROR", best.client and best.client.name, err) end
 	end
 	NOW = t
@@ -50,20 +53,24 @@ local clients = {}      -- by name
 local channels = {}     -- [name] = { [client] = true }
 local locked = {}       -- [channel] = true: new joins refused
 local sent = { total = 0, maxLen = 0, byDist = {} }
+local badText = {}      -- chat text the game would refuse (too long, a bare "|")
 local invites = {}
 
 local function Fire(client, event, ...)
 	local args = { ... }
-	local prev = current
-	current = client
+	local prev, hw = current, HW
+	current, HW = client, false
 	for _, f in ipairs(client.frames) do
 		if f._events[event] and f._scripts.OnEvent then
 			local ok, err = pcall(f._scripts.OnEvent, f, event, unpack(args))
 			if not ok then print("EVENT ERROR", client.name, event, err) end
 		end
 	end
-	current = prev
+	current, HW = prev, hw
 end
+
+-- Forever (2026-11-06): add-on messages on a custom channel are accepted and dropped.
+local CHANNEL_ADDON_DROPPED = true
 
 local function Deliver(from, prefix, msg, dist, target, logged)
 	assert(type(prefix) == "string" and #prefix <= 16, "prefix too long")
@@ -85,10 +92,19 @@ local function Deliver(from, prefix, msg, dist, target, logged)
 		local name
 		for n, idx in pairs(from.chans) do if idx == target then name = n end end
 		if not name then return false end
+		if CHANNEL_ADDON_DROPPED then return 0 end
 		for c in pairs(channels[name] or {}) do To(c, c.chans[name], name) end
 	elseif dist == "WHISPER" then
 		for _, c in pairs(clients) do
-			if c.online and (c.short == target or c.full == target) then To(c) end
+			if c.online and (c.full == target or (c.short == target and c.realm == from.realm)) then
+				-- (Forever: a whisper reaches our realm only, the channel more.)
+				if c.realm ~= from.realm then
+					sent.lostWhispers = (sent.lostWhispers or 0) + 1
+					Schedule(0.05, function() Fire(from, "CHAT_MSG_SYSTEM", ("No player named '%s' is currently playing."):format(target)) end, from)
+				else
+					To(c)
+				end
+			end
 		end
 	elseif dist == "GUILD" then
 		for _, c in pairs(clients) do if c.guild and c.guild == from.guild then To(c) end end
@@ -292,6 +308,11 @@ local function NewClient(o)
 		if lib == "HereBeDragons-Pins-2.0" then return Stub("Pins") end
 	end })
 	env.GameTooltip = Stub("GameTooltip")
+	-- (As newer clients have it: SetText(text, r, g, b, alpha, wrap). An old-style wrap in the
+	-- alpha's place is an error there.)
+	env.GameTooltip.SetText = function(_, text, r, g, b, alpha)
+		if alpha ~= nil and type(alpha) ~= "number" then error("bad argument #5 to 'SetText'", 2) end
+	end
 	env.UIParent = NewFrame(c, "Frame", "UIParent")
 	env.Minimap = NewFrame(c, "Frame", "Minimap")
 	env.MinimapCluster = NewFrame(c, "Frame", "MinimapCluster")
@@ -314,10 +335,76 @@ local function NewClient(o)
 	-- never hears a bag click, the MoP Classic bug of 2026-11-03.)
 	env.HandleModifiedItemClick = function(link) return env.ChatFrameUtil.InsertLink(link) end
 	env.IsMouseButtonDown = function() return false end
-	env.SendChatMessage = function() end
+	-- Chat text: on a channel only inside a click (else blocked, as the game does), to every
+	-- member, the sender too.
+	env.SendChatMessage = function(text, chatType, _, target)
+		if type(text) ~= "string" or #text > 255 or (text:find("|", 1, true) and not text:find("|H", 1, true)) then
+			badText[#badText + 1] = tostring(text)
+			return
+		end
+		if chatType ~= "CHANNEL" then return end
+		local name
+		for n, idx in pairs(c.chans) do if idx == target then name = n end end
+		if not name then return end
+		if not HW then
+			c.blocked = (c.blocked or 0) + 1
+			Schedule(0, function() Fire(c, "ADDON_ACTION_BLOCKED", "Pugger", "SendChatMessage()") end, c)
+			return
+		end
+		sent.total = sent.total + 1
+		sent.byDist.TEXT = (sent.byDist.TEXT or 0) + 1
+		local kind = text:match("^(%u%d)~")
+		if kind then sent.kinds = sent.kinds or {} sent.kinds[kind] = (sent.kinds[kind] or 0) + 1 end
+		if #text > sent.maxLen then sent.maxLen = #text end
+		for m in pairs(channels[name] or {}) do
+			if m.online then
+				Schedule(0.05, function()
+					Fire(m, "CHAT_MSG_CHANNEL", text, c.full, "", m.chans[name] .. ". " .. name, c.full, "", 0, m.chans[name], name)
+				end, m)
+			end
+		end
+	end
+	-- The Chat Channels window's lists: channels in number order, and each one's members.
+	local function Displayed()
+		local list = {}
+		for n, idx in pairs(c.chans) do list[#list + 1] = { n, idx } end
+		table.sort(list, function(a, b) return a[2] < b[2] end)
+		return list
+	end
+	local function Members(name)
+		local list = {}
+		for m in pairs(channels[name] or {}) do if m.online then list[#list + 1] = m end end
+		table.sort(list, function(a, b) return a.name < b.name end)
+		return list
+	end
+	-- (As Forever: no member count until the list was asked for, by selecting the channel.)
+	c.rosterLoaded = {}
+	env.SetSelectedDisplayChannel = function(i)
+		local e = Displayed()[i]
+		if e then Schedule(c.rosterDelay or 1, function() c.rosterLoaded[e[1]] = true end, c) end
+	end
+	env.GetNumDisplayChannels = function() return #Displayed() end
+	env.GetChannelDisplayInfo = function(i)
+		local e = Displayed()[i]
+		if e then return e[1], false, false, e[2], c.rosterLoaded[e[1]] and #Members(e[1]) or nil, true, "CHANNEL_CATEGORY_CUSTOM" end
+	end
+	env.C_ChatInfo.GetChannelRosterInfo = function(i, j)
+		local e = Displayed()[i]
+		if not (e and c.rosterLoaded[e[1]]) then return nil end
+		local m = e and Members(e[1])[j]
+		if m then return m.name, false, false, "Player-1-" .. m.name end
+	end
+	env.GetPlayerInfoByGUID = function(guid)
+		for _, m in pairs(clients) do
+			if "Player-1-" .. m.name == guid then
+				return "", m.class, "", "", 2, m.name, m.realm == c.realm and "" or m.realm
+			end
+		end
+	end
 	env.PlaySound = function() end
 	env.GetBuildInfo = function() return "1.16.1", "1", "", 16001 end
 	env.GetLocale = function() return "enUS" end
+	env.ERR_CHAT_PLAYER_NOT_FOUND_S = "No player named '%s' is currently playing."
 	setmetatable(env, { __index = function(_, k)
 		if type(k) == "string" and k:find("DB$") then return nil end
 		return nil
@@ -354,10 +441,10 @@ local function Logout(c)
 end
 
 local function Call(c, fn, ...)
-	local prev = current
-	current = c
+	local prev, hw = current, HW
+	current, HW = c, true -- (a player's click)
 	local res = { pcall(fn, ...) }
-	current = prev
+	current, HW = prev, hw
 	if not res[1] then error(c.name .. ": " .. tostring(res[2]), 2) end
 	return unpack(res, 2)
 end
@@ -375,6 +462,7 @@ local function Errors(c)
 	local db = c.env.PuggerDB
 	return db and db.errors or {}
 end
+local function Kinds(k) return (sent.kinds or {})[k] or 0 end
 local function PostBy(c, author, text)
 	for _, p in pairs(c.ns.rdb.posts) do
 		if p.a == author and (not text or p.x == text) then return p end
@@ -427,11 +515,11 @@ Cc.level = 12
 Check(lowWhy ~= nil, "level 9 can't post")
 
 -- An 80-character post with a pin: does it fit one message?
-local before = sent.total
+local before = Kinds("P1")
 Call(B, function() B.env.PuggerDB.consented = 1 end)
 Call(B, B.ns.Feed.Post, string.rep("x", 80), {}, function() end)
 Advance(5)
-Check(sent.total - before == 1, ("an 80-character post with a pin is one message (%d sent)"):format(sent.total - before))
+Check(Kinds("P1") - before == 1, ("an 80-character post with a pin is one message (%d sent)"):format(Kinds("P1") - before))
 
 -- Every post says where it was written: zone and coordinates; in a dungeon (no position) the zone.
 local function Newest(c, author)
@@ -525,7 +613,7 @@ Check(B.ns.rdb.posts[pb.id] == nil, "the deleted post never came back to Bran")
 
 print("== flood")
 Call(Cc, function()
-	for i = 1, 40 do Cc.env.C_ChatInfo.SendAddonMessage("PUGGER", "L1~x:1:1~1", "CHANNEL", Cc.chans.PuggerA1) end
+	for i = 1, 40 do Cc.env.SendChatMessage("L1~x:1:1~1", "CHANNEL", nil, Cc.chans.PuggerA1) end
 end)
 Advance(2)
 Check(A.ns.Comm.stats.flood >= 1, "a burst of 40 messages is cut off")
@@ -703,6 +791,11 @@ Check(A.ns.db.settings.launcher == "chat" and A.ns.db.settings.setupDone == true
 
 -- The title bar's "i": the limits, on hover.
 Check(A.env.Pugger_LimitsButton ~= nil and pcall(A.ns.UI.LimitsTip, A.env.Pugger_LimitsButton), "the title bar's \"i\" shows the limits")
+do
+	local tip = feedA.titleTip
+	tip.hint, tip.online = "The realm's feed", true
+	Check(tip:GetScript("OnEnter") and pcall(tip:GetScript("OnEnter"), tip), "the title's tooltip (the feed, its users) shows")
+end
 
 print("== links into the compose box")
 -- A shift-clicked item reaches the box (bag click -> HandleModifiedItemClick ->
@@ -866,7 +959,6 @@ Check(Call(P, P.ns.Calls.AtStone, P.ns.Stones.Get("wc")), "back at the learned s
 Logout(P) Logout(Q)
 
 print("== stones learned from other players (the gossip)")
-local function Kinds(k) return (sent.kinds or {})[k] or 0 end
 local function Hover(c)
 	c.env.GameTooltipTextLeft1 = { GetText = function() return "Meeting Stone" end }
 	Call(c, c.ns.Calls.OnTooltip, { GetUnit = function() return nil end, GetName = function() return "GameTooltip" end })
@@ -878,9 +970,16 @@ local Lia = NewClient({ name = "Liar", map = 1436, x = 0.8, y = 0.8 })
 Login(O) Login(Lia)
 Advance(60)
 local s1 = Kinds("S1")
+-- On Forever the tooltip's text can be a secret value: it is left alone (no report, no error).
+W[1].env.issecretvalue = function(v) return v == "Meeting Stone" end
 Hover(W[1])
 Advance(15)
-Check(Kinds("S1") == s1 + 1, "hovering a stone sends one report")
+W[1].env.issecretvalue = nil
+Check(Kinds("S1") == s1, "a secret tooltip text: left alone, no report")
+Hover(W[1])
+Advance(15)
+Check(Kinds("S1") - s1 >= 1 and Kinds("S1") - s1 <= W[1].ns.Comm.REACH,
+	("hovering a stone sends one report (whispered to %d players)"):format(Kinds("S1") - s1))
 Check(Call(O, O.ns.Stones.Agreed, "dm") == nil, "one report: not agreed")
 Hover(W[2])
 Advance(15)
@@ -903,7 +1002,9 @@ for k in pairs(sc) do sc[k] = nil end
 local s2 = Kinds("S2")
 Call(W[6], W[6].ns.Stones.Sighted, 1436, 0.30, 0.30, nil, true)
 Advance(15)
-Check(Kinds("S2") - s2 <= 2, ("one report, %d answers (five walkers hold sightings)"):format(Kinds("S2") - s2))
+-- (Answers go to the reporter alone, a whisper each: the others don't hear them to stay quiet.)
+Check(Kinds("S2") - s2 <= 5, ("one report, %d answers, one from each walker who saw it"):format(Kinds("S2") - s2))
+s2 = Kinds("S2")
 -- A liar alone: never agreed, however often.
 for i = 1, 5 do
 	Call(Lia, function() Lia.ns.Comm.Send("S1~1436~8000~8000~dm") end)
@@ -912,10 +1013,10 @@ end
 Advance(15)
 local lm, lx = Call(O, O.ns.Stones.Agreed, "dm")
 Check(lm == 1436 and lx < 0.5, "a liar's spot, sent five times, changes nothing")
-Check(Kinds("S2") - s2 <= 2, "nobody vouches for the liar's spot (nobody saw a stone there)")
+Check(Kinds("S2") == s2, "nobody vouches for the liar's spot (nobody saw a stone there)")
 -- Learned spots help, never block: a call far from the agreed spot still reaches everyone.
 Call(Lia, function()
-	Lia.ns.Comm.Send(("M1~D~1~1436~9000~9000~%s~dm~2~17-26~WARRIOR~"):format(Lia.ns.Codec.Base36(BASE + math.floor(NOW) + 600)), { logged = true })
+	Lia.ns.Comm.Send(("M1~D~1~1436~9000~9000~%s~dm~2~17-26~WARRIOR~"):format(Lia.ns.Codec.Base36(BASE + math.floor(NOW) + 600)), { logged = true, now = true })
 end)
 Advance(5)
 local farCall
@@ -939,7 +1040,7 @@ Logout(O) Logout(Lia)
 
 print("== a locked channel")
 -- One player alone saying "moved" moves nobody.
-for i = 1, 5 do Call(E, function() E.env.C_ChatInfo.SendAddonMessage("PUGGER", "B1~2", "CHANNEL", E.chans.PuggerA1) end) Advance(2) end
+for i = 1, 5 do Call(E, function() E.env.SendChatMessage("B1~2", "CHANNEL", nil, E.chans.PuggerA1) end) Advance(2) end
 Check(A.ns.rdb.channel == 1, "one player's fake \"moved\" moves nobody")
 Call(A, A.ns.Comm.OnChannelNotice, "PASSWORD_CHANGED", "Griefer-Forever", "", "3. PuggerA1", "", "", 0, 0, "PuggerA1")
 Call(B, B.ns.Comm.OnChannelNotice, "PASSWORD_CHANGED", "Griefer-Forever", "", "3. PuggerA1", "", "", 0, 0, "PuggerA1")
@@ -976,10 +1077,14 @@ for _, c in ipairs({ A, B }) do
 		c.ns.Measure.Report()
 		c.env.SlashCmdList.PUGGER("help")
 		c.env.SlashCmdList.PUGGER("status")
+		c.env.SlashCmdList.PUGGER("measure echo")
 	end)
 end
-Advance(5)
+Advance(6)
 Check(#Errors(A) == 0 and #Errors(B) == 0, "every tab, the demo, the menus and the reports drew without error")
+local ec = A.ns.db.measure.echo
+Check(type(ec) == "table" and type(ec.number) == "number" and ec.channel == "sent 0, back no" and type(ec.whisper) == "string" and ec.whisper:find("^sent"),
+	"/pug measure echo sends on each way and saves what came back")
 local feed = A.env.Pugger_FeedBasic or A.env.Pugger_Feed -- (the stub has no portrait frame)
 Call(A, function()
 	A.ns.UI.Toggle(true)
@@ -1034,6 +1139,127 @@ Call(A, A.ns.Feed.Post, "moved on", {}, function() end)
 Advance(3)
 Check(Heard(B, "moved on"), "120 yards on: posting again")
 A.x = 0.5
+
+print("== channel numbers")
+-- Forever: our channel joined before the game's own took /1 and pushed General to /2. Moved past
+-- the game's (zone) channels, General and Trade get /1 and /2 back; a player's own keeps its number.
+do
+	local ours = A.ns.Comm.ChannelName()
+	local zone = { General = 1, Trade = 2 }
+	local saved = A.chans
+	A.chans = { [ours] = 1, General = 2, Trade = 3, Mine = 4 }
+	A.env.GetChannelList = function()
+		local t = {}
+		for name, id in pairs(A.chans) do t[#t + 1] = { id, name } end
+		table.sort(t, function(x, y) return x[1] < y[1] end)
+		local out = {}
+		for _, e in ipairs(t) do out[#out + 1] = e[1] out[#out + 1] = e[2] out[#out + 1] = false end
+		return unpack(out)
+	end
+	A.env.C_ChatInfo.GetChannelInfoFromIdentifier = function(name) return { zoneChannelID = zone[name] or 0 } end
+	A.env.C_ChatInfo.SwapChatChannelsByChannelIndex = function(a, b)
+		local na, nb
+		for name, id in pairs(A.chans) do if id == a then na = name elseif id == b then nb = name end end
+		A.chans[na], A.chans[nb] = b, a
+	end
+	Call(A, A.ns.Comm.KeepLast)
+	Check(A.chans.General == 1 and A.chans.Trade == 2 and A.chans[ours] == 3 and A.chans.Mine == 4
+		and A.ns.Comm.ChannelIndex() == 3, "our channel moves after General and Trade, the player's own stays")
+	A.chans = saved
+	A.env.GetChannelList, A.env.C_ChatInfo.GetChannelInfoFromIdentifier, A.env.C_ChatInfo.SwapChatChannelsByChannelIndex = nil, nil, nil
+	Call(A, function() A.ns.Comm.JoinChannel() end)
+end
+-- A /reload: already in the channel, the add-on says it's here (profile, digest) all the same.
+do
+	local fired = 0
+	Call(B, function() B.ns.On("CHANNEL_READY", function() fired = fired + 1 end) end)
+	local d0 = B.ns.Sync.stats.digests
+	Call(B, function() B.ns.Comm.SetIndexForTest(0) B.ns.Comm.JoinChannel() end)
+	Advance(45)
+	Check(fired == 1 and B.ns.Sync.stats.digests > d0, "after a /reload the add-on sends its digest without waiting 15 minutes")
+end
+
+-- Heard from, but no profile yet (only a digest came): asked for it by whisper, so they count
+-- as online within seconds, not at their next profile ten minutes on.
+do
+	-- (Gale: new, no posts, so nothing else makes Aria want their key; their profile at login is
+	-- lost to Aria, as when Aria logs in after them)
+	local G = NewClient({ name = "Gale" })
+	Login(G)
+	Advance(60)
+	Call(A, function() A.ns.rdb.profiles[G.ns.me] = nil end)
+	Advance(610) -- (past an ask made at Gale's login)
+	Call(G, G.ns.Sync.SendDigest, true, A.ns.me)
+	Advance(10)
+	Check(Call(A, function() local pr = A.ns.rdb.profiles[G.ns.me] return pr and pr.pk ~= nil end),
+		"a digest from someone without a profile: their profile follows in seconds")
+end
+
+print("== Forever's channel")
+-- Add-on messages on the channel never arrive (CHANNEL_ADDON_DROPPED): everything above went as
+-- chat text inside a click, or by whisper. Never text outside a click (the game blocks it and
+-- says "Interface action failed").
+do
+	local blocked = 0
+	for _, c in pairs(clients) do blocked = blocked + (c.blocked or 0) end
+	Check(blocked == 0, ("no channel text outside a click (%d blocked)"):format(blocked))
+	Check(#badText == 0, ("no chat text the game would refuse (%d)"):format(#badText))
+	Check((sent.byDist.TEXT or 0) > 0 and (sent.byDist.WHISPER or 0) > 0, "posts went as channel text, the rest by whisper")
+	-- The member count, from the channel's list: right at once, for someone who just logged in.
+	local N = NewClient({ name = "Nova" })
+	Login(N)
+	Advance(30)
+	local members = 0
+	for m in pairs(channels[N.ns.Comm.ChannelName()] or {}) do if m.online then members = members + 1 end end
+	Check(Call(N, N.ns.Comm.Online) == members and members > 1,
+		("someone who logged in half a minute ago counts everyone in the channel (%d)"):format(members))
+	-- A post by a click reaches someone who never whispered with its author.
+	Call(N, function() N.env.PuggerDB.consented = 1 end)
+	Call(N, N.ns.Feed.Post, "hello from Nova", {}, function() end)
+	Advance(5)
+	local got = 0
+	for m in pairs(channels[N.ns.Comm.ChannelName()] or {}) do
+		if m ~= N and m.online and PostBy(m, N.ns.me, "hello from Nova") then got = got + 1 end
+	end
+	Check(got == members - 1, ("a post reaches everyone in the channel at once (%d of %d)"):format(got, members - 1))
+	local checkedBy = 0
+	for m in pairs(channels[N.ns.Comm.ChannelName()] or {}) do
+		local p = m ~= N and m.online and PostBy(m, N.ns.me, "hello from Nova")
+		if p and p.sv then checkedBy = checkedBy + 1 end
+	end
+	Check(checkedBy == got, ("...and its signature checks out for them all: the profile went first (%d)"):format(checkedBy))
+	Logout(N)
+	-- A player of another realm in the same channel (Forever's channels reach further than a
+	-- whisper): reads and writes posts there, and nobody ever whispers them.
+	local Z = NewClient({ name = "Zed", realm = "Far" })
+	Login(Z)
+	Advance(40)
+	Call(Z, function() Z.env.PuggerDB.consented = 1 end)
+	Call(Z, Z.ns.Feed.Post, "hello from afar", {}, function() end)
+	Call(A, A.ns.Feed.Post, "hello Zed", {}, function() end)
+	Advance(120)
+	local zp = PostBy(A, Z.ns.me, "hello from afar")
+	Check(zp and zp.sv, "a post from another realm arrives and checks out (its profile came first)")
+	Check(PostBy(Z, A.ns.me, "hello Zed") ~= nil, "...and posts reach that realm")
+	Check((sent.lostWhispers or 0) == 0, ("nobody whispers a realm a whisper can't reach (%d \"no player named\")"):format(sent.lostWhispers or 0))
+	Logout(Z)
+	-- Just after login the member list isn't loaded: a background message waits for it.
+	local Q = NewClient({ name = "Quin" })
+	Q.rosterDelay = 15
+	Login(Q)
+	Advance(22)
+	Check(Call(Q, Q.ns.Comm.Ready) and Call(Q, Q.ns.Comm.Roster) == nil and #Call(Q, Q.ns.Comm.Peers, 3) == 0,
+		"Quin is in the channel, its member list not loaded yet: nobody to whisper to")
+	Call(Q, Q.ns.Comm.Send, "X1~held~1")
+	Advance(30)
+	local got = 0
+	for _, m in pairs(clients) do
+		local x = m ~= Q and m.online and m.env.PuggerDB.measure and m.env.PuggerDB.measure.x1_held
+		if x and x.from == Q.ns.me then got = got + 1 end
+	end
+	Check(got > 0, ("...a message sent then waits for the list, and goes when it comes (%d got it)"):format(got))
+	Logout(Q)
+end
 
 print("== totals")
 local all = 0

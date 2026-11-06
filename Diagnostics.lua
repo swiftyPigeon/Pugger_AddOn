@@ -75,8 +75,25 @@ function Diagnostics.Status()
 			ns.TestNet() and (" · test transport " .. ns.TestNet()) or ""),
 		("Posts held: %d · profiles: %d · following: %d · key: %s"):format(Store.Total(), ns.Count(ns.rdb.profiles),
 			ns.Count(ns.rdb.follows), ns.Identity.Ready() and "ready" or "making"),
-		("Sent %d · received %d · failed %d · flood cut %d · queue %d"):format(Comm.stats.sent, Comm.stats.recv,
-			Comm.stats.fails, Comm.stats.flood, Comm.QueueSize()),
+		-- (echo: our own messages the server sent back: above 0, the channel carries add-on
+		-- messages, even with nobody else on it.)
+		("Sent %d · echo %d · received %d · failed %d · flood cut %d · queue %d"):format(Comm.stats.sent,
+			Comm.stats.echo or 0, Comm.stats.recv, Comm.stats.fails, Comm.stats.flood, Comm.QueueSize()),
+		-- (where incoming add-on messages go: every add-on's, ours, hidden by the client as
+		-- secret, and ours dropped as from another channel)
+		("Add-on messages: %d (any add-on) · ours %d · secret %d · other channel %d"):format(
+			Comm.stats.events or 0, Comm.stats.ours or 0, Comm.stats.secret or 0, Comm.stats.elsewhere or 0),
+		-- (the channel as Forever has it: what we said on it as text, what we read there, what the
+		-- game blocked; background messages whispered around; and who is in the channel)
+		("Channel text: said %d · heard %d · blocked %d · whispered around %d · members %s"):format(
+			Comm.stats.said or 0, Comm.stats.heardText or 0, Comm.stats.blocked or 0, Comm.stats.spread or 0,
+			(function()
+				local r = Comm.Roster()
+				if not r then return "?" end
+				local reach = 0
+				for _, k in ipairs(r) do if Comm.CanWhisper(k) then reach = reach + 1 end end
+				return ("%d (%d named, %d a whisper reaches)"):format(r.count, #r, reach)
+			end)()),
 		("Sync: digests %d sent, %d heard · answers %d · asked %d · sent %d posts"):format(Sync.stats.digests,
 			Sync.stats.heard, Sync.stats.offers, Sync.stats.asked, Sync.stats.sent),
 		("Stones known: %d in the table, %d recorded here, %d agreed by players"):format(ns.Stones.Counts()),

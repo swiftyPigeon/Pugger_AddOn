@@ -2,12 +2,14 @@ local ADDON, ns = ...
 
 -- Catch-up without a server (section 5 of the plan).
 -- 1. At login, and every DIGEST_EVERY after (slower on a big feed: Comm.Scale), a client sends
---    ONE digest (H2) on the channel: for each hour of the last twelve, how many posts it holds and a hash of their ids. A
+--    ONE digest (H2), whispered to a few players from the channel's member list (Comm.Spread):
+--    for each hour of the last twelve, how many posts it holds and a hash of their ids. A
 --    client that heard a digest just like its own in that time stays quiet: most clients that
---    are in step never send one.
--- 2. A client that holds more of a bucket than the digest's sender waits a random 2-10 s; the
---    first to answer says so on the channel (O2) and the others stay quiet. It whispers the
---    short ids of its posts in that bucket (I2).
+--    are in step never send one. One that hears a digest showing the sender holds more sends
+--    its own back to that sender, who then answers it.
+-- 2. A client that holds more of a bucket than the digest's sender waits a random 2-10 s and
+--    whispers the short ids of its posts in that bucket (I2). (O2, "I answer", was for a digest
+--    the whole channel heard: still understood, no longer sent.)
 -- 3. The sender asks for the ones it lacks and would keep (Q1), newest first, and tells the
 --    answerer of posts it holds a tombstone for (D1). The answerer whispers those posts with
 --    their counts (C1), only ones whose signature it checked.
@@ -30,6 +32,7 @@ local heardSame = 0        -- when a digest just like ours was last heard
 local pending = {}         -- [asker .. "#" .. bucket] = true while our answer waits
 local offered = {}         -- [asker .. "#" .. bucket] = when we last answered
 local askedLogin = 0
+local answeredBack = {}    -- [player] = when our digest last went back to them
 local loginAt = 0
 
 local function DigestText()
@@ -39,14 +42,15 @@ local function DigestText()
 	return now, table.concat(parts, ",")
 end
 
-function Sync.SendDigest(force)
+-- to: that one player (else a few from the member list).
+function Sync.SendDigest(force, to)
 	if not ns.Comm.Ready() then return end
 	local now = ns.Now()
 	if not force and now - heardSame < Sync.DIGEST_EVERY * ns.Comm.Scale() then return end
 	local bucket, body = DigestText()
 	lastDigest = now
 	stats.digests = stats.digests + 1
-	ns.Comm.Send(("H2~%s~%s"):format(Codec.Base36(bucket), body), { key = "H2" })
+	ns.Comm.Send(("H2~%s~%s"):format(Codec.Base36(bucket), body), { key = "H2", to = to, wide = to ~= nil })
 end
 
 local function ParseDigest(text)
@@ -72,7 +76,6 @@ local function Offer(asker, b)
 	end
 	if #ids == 0 then return end
 	stats.offers = stats.offers + 1
-	ns.Comm.Send(("O2~%s~%s"):format(asker, Codec.Base36(b)))
 	ns.Comm.Send(("I2~%s~%s"):format(Codec.Base36(b), table.concat(ids, ",")), { to = asker })
 end
 
@@ -101,9 +104,10 @@ ns.Comm.Handle("H2", function(dist, sender, text)
 	end
 	if same then
 		heardSame = ns.Now()
-	elseif ns.Now() - lastDigest > 120 then
-		-- They hold something we don't: our own digest lets them answer us.
-		ns.After(3 + math.random() * 10, "sync digest", function() Sync.SendDigest(true) end)
+	elseif ns.Now() - (answeredBack[sender] or -1e9) > 120 then
+		-- They hold something we don't: our own digest, to them, lets them answer us.
+		answeredBack[sender] = ns.Now()
+		ns.After(3 + math.random() * 10, "sync digest", function() Sync.SendDigest(true, sender) end)
 	end
 end)
 

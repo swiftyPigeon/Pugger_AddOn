@@ -8,6 +8,8 @@ local ADDON, ns = ...
 --   /pug measure logged                     one logged message on the channel: do others get it?
 --   /pug measure near                       an add-on message on SAY and YELL: does Forever allow
 --                                           them, and how far do they reach?
+--   /pug measure echo                      one message to yourself on each way (the channel,
+--                                           logged, a whisper, guild, say): which come back?
 --   /pug measure sign                       Ed25519 sign and verify, timed in this client
 --   /pug measure events                     every event for 20 s: use a meeting stone meanwhile
 --   /pug measure report                     everything above, to copy into the results note
@@ -70,7 +72,7 @@ end
 
 function Measure.Logged()
 	if not ns.Comm.Ready() then return ns.Print(ns.L.NOT_CONNECTED) end
-	ns.Comm.Send("X1~logged~" .. ns.Now(), { logged = true })
+	ns.Comm.Send("X1~logged~" .. ns.Now(), { logged = true, now = true })
 	ns.Print("logged test sent: the others type /pug measure report")
 end
 ns.Comm.Handle("X1", function(dist, sender, text, logged)
@@ -93,6 +95,7 @@ end
 -- copies print it here instead.)
 ns.On("LOGIN", function()
 	ns.RegisterEvent("CHAT_MSG_ADDON", function(prefix, text, dist, sender)
+		if ns.Secret(prefix, text, dist, sender) then return end
 		if prefix == ns.PREFIX and (dist == "SAY" or dist == "YELL") and type(text) == "string" and text:find("^X1~") then
 			local map, x, y = ns.Calls.MyPosition()
 			ns.db.measure["near_heard_" .. dist] = { from = sender, t = ns.Now(), map = map, x = x, y = y }
@@ -100,6 +103,49 @@ ns.On("LOGIN", function()
 		end
 	end)
 end)
+
+-- Our own messages, back from the server: the channel alone tells nothing apart from the other
+-- ways (a whisper to ourselves, guild, say). Heard here before Comm drops our own.
+local echo   -- [way] = { sent = result, back = true }
+local function EchoHeard(prefix, text, dist, sender, logged)
+	if not echo or ns.Secret(prefix, text, dist, sender) then return end
+	if prefix ~= ns.PREFIX or type(text) ~= "string" or type(sender) ~= "string" or ns.Key(sender) ~= ns.me then return end
+	local way = text:match("^X2~(%w+)~")
+	if way and echo[way] then echo[way].back = (logged and "logged" or "yes") .. " (" .. tostring(dist) .. ")" end
+end
+ns.On("LOGIN", function()
+	ns.RegisterEvent("CHAT_MSG_ADDON", function(prefix, text, dist, sender) EchoHeard(prefix, text, dist, sender) end)
+	ns.RegisterEvent("CHAT_MSG_ADDON_LOGGED", function(prefix, text, dist, sender) EchoHeard(prefix, text, dist, sender, true) end)
+end)
+
+function Measure.Echo()
+	local index, name = ns.Comm.ChannelIndex(), ns.Comm.ChannelName()
+	local game = name and GetChannelName(name) or 0
+	ns.Print(("echo test: %s, number %d (the game says %d)"):format(tostring(name), index, game))
+	local me = ns.TellName(ns.me) -- (on Forever "Firstname Surname": UnitName gives the first only)
+	local ways = {
+		{ "channel", C_ChatInfo.SendAddonMessage, "CHANNEL", index },
+		{ "logged", C_ChatInfo.SendAddonMessageLogged, "CHANNEL", index },
+		{ "whisper", C_ChatInfo.SendAddonMessage, "WHISPER", me },
+		{ "say", C_ChatInfo.SendAddonMessage, "SAY" },
+	}
+	if IsInGuild and IsInGuild() then ways[#ways + 1] = { "guild", C_ChatInfo.SendAddonMessage, "GUILD" } end
+	echo = {}
+	for _, w in ipairs(ways) do
+		local ok, res = pcall(w[2], ns.PREFIX, "X2~" .. w[1] .. "~" .. ns.Now(), w[3], w[4])
+		echo[w[1]] = { sent = ok and tostring(res) or ("error: " .. tostring(res)) }
+	end
+	ns.After(5, "echo test", function()
+		local out = { number = index, game = game }
+		for _, w in ipairs(ways) do
+			local e = echo[w[1]]
+			out[w[1]] = ("sent %s, back %s"):format(e.sent, e.back or "no")
+			ns.Print(("  %s: sent %s · back %s"):format(w[1], e.sent, e.back or "no"))
+		end
+		echo = nil
+		Save("echo", out)
+	end)
+end
 
 function Measure.Sign()
 	local seed = Ed.SHA512("pugger measure"):sub(1, 32)
@@ -160,9 +206,10 @@ function Measure.Slash(rest)
 	if cmd == "heard" then return Measure.Heard() end
 	if cmd == "logged" then return Measure.Logged() end
 	if cmd == "near" then return Measure.Near() end
+	if cmd == "echo" then return Measure.Echo() end
 	if cmd == "sign" then return Measure.Sign() end
 	if cmd == "events" then return Measure.Events() end
 	if cmd == "report" then return Measure.Report() end
 	if cmd == "clear" then wipe(ns.db.measure) wipe(heard) return ns.Print("measurements cleared") end
-	ns.Print("/pug measure rate <count> <per second> | heard | logged | near | sign | events | report | clear")
+	ns.Print("/pug measure rate <count> <per second> | heard | logged | echo | near | sign | events | report | clear")
 end

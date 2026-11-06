@@ -15,7 +15,7 @@ ns.Identity = Identity
 local Ed = ns.Ed25519
 local Codec = ns.Codec
 
-Identity.PROFILE_EVERY = 1800 -- seconds between two profiles sent unasked
+Identity.PROFILE_EVERY = 600 -- seconds between two profiles sent unasked (slower on a big feed)
 Identity.BIO_MAX = 80
 
 local seed, pk, pkB64
@@ -59,6 +59,13 @@ local function Queue(fn, done, first)
 	Next()
 end
 function Identity.Busy() return #work + (running and 1 or 0) end
+
+-- Signs msg at once (about 40 ms on Forever): inside a click, where the channel can be written
+-- before the click is over. nil if the key isn't ready.
+function Identity.SignNow(msg)
+	if not seed or not pk then return nil end
+	return Ed.ToB64(Ed.Sign(seed, msg, pk))
+end
 
 -- Signs msg with the player's key; done(sigB64) (nil if the key isn't ready).
 function Identity.Sign(msg, done)
@@ -112,8 +119,14 @@ function Identity.MyProfile()
 	}
 end
 
-local lastProfile = 0
-function Identity.SendProfile(force)
+local function ProfileMessage(pr, sig)
+	return table.concat({ "R1", pr.pk, tostring(pr.level), pr.class, pr.guild, pr.showFollows and "1" or "0",
+		Codec.Base36(pr.t), sig, Codec.Clean(pr.bio) }, "~")
+end
+
+-- now: inside a click, on the channel for everyone (else whispered to a few: Comm.Spread).
+local lastProfile, lastSaid = 0, -1e9
+function Identity.SendProfile(force, now)
 	if not pkB64 or not ns.Comm.Ready() then return end
 	if not force and ns.Now() - lastProfile < 60 then return end
 	lastProfile = ns.Now()
@@ -123,12 +136,23 @@ function Identity.SendProfile(force)
 	ns.rdb.profiles[ns.me] = mine
 	for k, v in pairs(pr) do mine[k] = v end
 	mine.direct = true
+	if now then
+		local sig = Identity.SignNow(Codec.ProfileSigned(ns.me, pr))
+		if not sig then return end
+		lastSaid = ns.Now()
+		return ns.Comm.Send(ProfileMessage(pr, sig), { logged = true, now = true })
+	end
 	Identity.Sign(Codec.ProfileSigned(ns.me, pr), function(sig)
 		if not sig then return end
-		local msg = table.concat({ "R1", pr.pk, tostring(pr.level), pr.class, pr.guild, pr.showFollows and "1" or "0",
-			Codec.Base36(pr.t), sig, Codec.Clean(pr.bio) }, "~")
-		ns.Comm.Send(msg, { key = "R1", logged = true })
+		ns.Comm.Send(ProfileMessage(pr, sig), { key = "R1", logged = true })
 	end)
+end
+
+-- Inside the click of a post: our profile on the channel first, when it hasn't been there for
+-- PROFILE_EVERY. Every reader needs our key to check the post, and a whisper can't reach them all.
+function Identity.SayProfileIfDue()
+	if ns.Now() - lastSaid < Identity.PROFILE_EVERY then return end
+	Identity.SendProfile(true, true)
 end
 
 -- A profile we lack, asked of its owner by whisper (R0), only once we heard them online in the
@@ -137,6 +161,7 @@ end
 Identity.ASK_WITHIN = 600
 Identity.ASK_AGAIN = 600
 local waiting, asked = {}, {}
+local soon = {} -- [name] = an ask on its way (Identity.Heard)
 
 function Identity.Want(name)
 	if not name or name == ns.me or (ns.rdb.profiles[name] and ns.rdb.profiles[name].pk) then return end
@@ -144,11 +169,32 @@ function Identity.Want(name)
 	Identity.Heard(name)
 end
 
-function Identity.Heard(name)
-	if not waiting[name] or not ns.Comm.HeardWithin(name, Identity.ASK_WITHIN) then return end
+local function Lacking(name)
+	local pr = ns.rdb.profiles[name]
+	return not (pr and pr.pk)
+end
+
+local function Ask(name)
+	if not ns.Comm.HeardWithin(name, Identity.ASK_WITHIN) then return end
 	if GetTime() - (asked[name] or -1e9) < Identity.ASK_AGAIN then return end
 	asked[name] = GetTime()
 	ns.Comm.Send("R0~", { to = name })
+end
+
+-- On a small feed, anyone heard whose profile we lack is asked for it, so they count as online
+-- within seconds (Comm.Online counts only players with a profile), not at their next profile.
+-- A busy feed looks alive anyway: no whisper to each of hundreds. A few seconds later: the
+-- message we just heard may be that profile.
+Identity.ASK_UNDER = 25
+function Identity.Heard(name)
+	if not name or name == ns.me then return end
+	if waiting[name] then return Ask(name) end
+	if not Lacking(name) or soon[name] or ns.Comm.Online() >= Identity.ASK_UNDER then return end
+	soon[name] = true
+	ns.After(3, "profile ask", function()
+		soon[name] = nil
+		if Lacking(name) then Ask(name) end
+	end)
 end
 
 local answered = {}
@@ -159,14 +205,13 @@ ns.Comm.Handle("R0", function(dist, sender)
 	local pr = Identity.MyProfile()
 	Identity.Sign(Codec.ProfileSigned(ns.me, pr), function(sig)
 		if not sig then return end
-		ns.Comm.Send(table.concat({ "R1", pr.pk, tostring(pr.level), pr.class, pr.guild, pr.showFollows and "1" or "0",
-			Codec.Base36(pr.t), sig, Codec.Clean(pr.bio) }, "~"), { to = sender, logged = true })
+		ns.Comm.Send(ProfileMessage(pr, sig), { to = sender, logged = true })
 	end)
 end)
 
 function Identity.SetBio(text)
 	ns.cdb.bio = ns.Cut(Codec.Clean(text), Identity.BIO_MAX * 3)
-	Identity.SendProfile(true)
+	Identity.SendProfile(true, true) -- (saved with a click)
 	ns.Fire("FEED_CHANGED")
 end
 

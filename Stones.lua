@@ -195,7 +195,8 @@ function Stones.Sighted(map, x, y, key, report)
 		if ns.db.stoneReported[id] then return end
 	end
 	ns.db.stoneReported[id] = ns.Now()
-	ns.Comm.Send(("S1~%d~%d~%d~%s"):format(map, math.floor(x * 10000 + 0.5), math.floor(y * 10000 + 0.5), key or ""))
+	ns.Comm.Send(("S1~%d~%d~%d~%s"):format(map, math.floor(x * 10000 + 0.5), math.floor(y * 10000 + 0.5), key or ""),
+		{ reach = ns.Comm.REACH })
 end
 
 -- Is a spot known near here: the table's, or one the players agreed on (byOthers: without
@@ -338,7 +339,7 @@ ns.Comm.Handle("S1", function(dist, sender, text)
 	ns.After(2 + math.random() * 8, "stone answer", function()
 		if a.heard >= Stones.ANSWERS then return end
 		ns.Comm.Send(("S2~%d~%d~%d~%s~%s"):format(own.map, math.floor(own.x * 10000 + 0.5), math.floor(own.y * 10000 + 0.5),
-			own.key or "", sender))
+			own.key or "", sender), { to = sender, wide = true })
 	end)
 end)
 

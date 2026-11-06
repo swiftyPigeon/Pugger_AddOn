@@ -5,7 +5,7 @@ local ADDON, ns = ...
 -- see LICENSE.txt).
 
 ns.NAME = "PUG Social" -- the name players see (the add-on, its folder, saved data and channels stay Pugger)
-ns.VERSION = "0.1.2"
+ns.VERSION = "0.1.3"
 ns.PREFIX = "PUGGER"                  -- add-on message prefix (16 characters at most)
 ns.CHANNELS = { Alliance = "PuggerA", Horde = "PuggerH" } -- + 1, 2, 3...: the numbered channels
 ns.CHANNEL_MAX = 6                   -- the last backup channel tried
@@ -60,6 +60,16 @@ function ns.Now()
 		if t and t > 0 then return t end
 	end
 	return time()
+end
+
+-- Is any of these a secret value (newer clients, Forever's among them, hand some game data
+-- over as one: an add-on may pass it on, but not compare it, index with it or read it)?
+function ns.Secret(...)
+	if type(issecretvalue) ~= "function" then return false end
+	for i = 1, select("#", ...) do
+		if issecretvalue((select(i, ...))) == true then return true end
+	end
+	return false
 end
 
 function ns.Print(msg)
